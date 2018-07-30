@@ -1,0 +1,24 @@
+{
+  "backupjobs": [
+    {
+      "type": "sql",
+      "name": "myservice-test",
+      "connectionstring": "#{connstr-myservice-test}",
+      "zippassword": "#{zippass-myservice-test}"
+    },
+    {
+      "type": "cosmosdb",
+      "name": "myservice-prod",
+      "connectionstring": "#{connstr-myservice-prod}",
+      "collection": "#{collection-myservice-prod}",
+      "zippassword": "#{zippass-myservice-prod}"
+    },
+    {
+      "type": "azureblob",
+      "name": "myservice-dev",
+      "bloburl": "#{bloburl-myservice-dev}",
+      "key": "#{key-myservice-dev}",
+      "zippassword": "#{zippass-myservice-dev}"
+    }
+  ]
+}
