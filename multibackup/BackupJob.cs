@@ -20,6 +20,8 @@ namespace multibackup
         public string Key { get; set; }
         public string ZipPassword { get; set; }
 
+        public Dictionary<string, string> Tags { get; set; }
+
 
         public static BackupJob[] LoadBackupJobs(string jsonfile)
         {
@@ -72,6 +74,7 @@ namespace multibackup
                 string url = null;
                 string key = null;
                 string zippassword = backupjob.zippassword.Value;
+                Dictionary<string, string> tags = new Dictionary<string, string>();
 
 
                 if (type == "sql")
@@ -149,6 +152,14 @@ namespace multibackup
                     continue;
                 }
 
+                if (backupjob.tags != null)
+                {
+                    foreach (JProperty jsontag in backupjob.tags)
+                    {
+                        tags.Add(jsontag.Name, jsontag.Value.ToString());
+                    }
+                }
+
                 backupjobs.Add(new BackupJob()
                 {
                     Type = type,
@@ -157,7 +168,8 @@ namespace multibackup
                     Collection = collection,
                     Url = url,
                     Key = key,
-                    ZipPassword = zippassword
+                    ZipPassword = zippassword,
+                    Tags = tags
                 });
 
                 i++;

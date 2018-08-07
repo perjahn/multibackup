@@ -11,14 +11,22 @@
       "name": "myservice-prod",
       "connectionstring": "#{connstr-myservice-prod}",
       "collection": "#{collection-myservice-prod}",
-      "zippassword": "#{zippass-myservice-prod}"
+      "zippassword": "#{zippass-myservice-prod}",
+      "tags": {
+        "environment": "prod",
+        "team": "one"
+      }
     },
     {
       "type": "azurestorage",
       "name": "myservice-dev",
       "url": "#{url-myservice-dev}",
       "key": "#{key-myservice-dev}",
-      "zippassword": "#{zippass-myservice-dev}"
+      "zippassword": "#{zippass-myservice-dev}",
+      "tags": {
+        "environment": "dev",
+        "team": "two"
+      }
     }
   ]
 }

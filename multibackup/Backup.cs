@@ -25,43 +25,49 @@ namespace multibackup
 
             foreach (var backupjob in backupjobs)
             {
-                string type = backupjob.Type ?? "sql";
-
+                string jobtype = backupjob.Type ?? "sql";
                 string jobname = backupjob.Name;
                 string backuppath;
 
-                if (type == "sql")
+                Dictionary<string, string> tags = backupjob.Tags;
+                var logger = Log.ForContext("Jobname", jobname).ForContext("Jobtype", jobtype);
+                foreach (var key in tags.Keys)
+                {
+                    logger = logger.ForContext(key, tags[key]);
+                }
+
+                if (jobtype == "sql")
                 {
                     string connstr = backupjob.ConnectionString;
                     backuppath = Path.Combine(backupfolder, $"sql_{backupjob.Name}_{date}.bacpac");
                     if (backupSqlDB)
                     {
-                        ExportSqlDB(jobname, connstr, backuppath);
+                        ExportSqlDB(logger, jobname, connstr, backuppath);
                     }
                 }
-                else if (type == "cosmosdb")
+                else if (jobtype == "cosmosdb")
                 {
                     string connstr = backupjob.ConnectionString;
                     backuppath = Path.Combine(backupfolder, $"cosmosdb_{backupjob.Name}_{date}.json");
                     string collection = backupjob.Collection;
                     if (backupCosmosDB)
                     {
-                        ExportCosmosDB(jobname, connstr, collection, backuppath);
+                        ExportCosmosDB(logger, jobname, connstr, collection, backuppath);
                     }
                 }
-                else if (type == "azurestorage")
+                else if (jobtype == "azurestorage")
                 {
                     string url = backupjob.Url;
                     string key = backupjob.Key;
                     backuppath = Path.Combine(backupfolder, $"azurestorage_{backupjob.Name}_{date}");
                     if (backupAzureStorage)
                     {
-                        ExportAzureStorage(jobname, url, key, backuppath);
+                        ExportAzureStorage(logger, jobname, url, key, backuppath);
                     }
                 }
                 else
                 {
-                    Log.Warning("Unsupported database type: {type}", type);
+                    logger.Warning("Unsupported database type: {type}", jobtype);
                     continue;
                 }
 
@@ -72,7 +78,7 @@ namespace multibackup
                 string oldfolder = Directory.GetCurrentDirectory();
                 Directory.SetCurrentDirectory(zipfolder);
 
-                EncryptBackup(jobname, type, backuppath, zipfile, zippassword);
+                EncryptBackup(logger, jobname, jobtype, backuppath, zipfile, zippassword);
 
                 if (File.Exists(zipfile))
                 {
@@ -80,7 +86,7 @@ namespace multibackup
                 }
                 else
                 {
-                    Log.Warning("Backupjob failed: Jobname: {jobname}", backupjob.Name);
+                    logger.Warning("Backupjob failed");
                 }
 
                 Directory.SetCurrentDirectory(oldfolder);
@@ -89,14 +95,14 @@ namespace multibackup
             Log.Information("Done Exporting: Time: {elapsedms}", (long)watch.Elapsed.TotalMilliseconds);
         }
 
-        static void ExportSqlDB(string jobname, string connstr, string backupfile)
+        static void ExportSqlDB(ILogger logger, string jobname, string connstr, string backupfile)
         {
             string sqlpackagebinary = Tools.sqlpackagebinary;
 
             for (int tries = 0; tries < 5; tries++)
             {
-                Log.Information("Exporting {jobtype} {jobname} (try {tries}) -> {backupfile}",
-                    "sql", jobname, tries + 1, backupfile);
+                logger.Information("Exporting: (try {tries}) -> {backupfile}",
+                    tries + 1, backupfile);
 
                 Stopwatch watch = Stopwatch.StartNew();
 
@@ -112,34 +118,34 @@ namespace multibackup
                     long size = new FileInfo(backupfile).Length;
                     long sizemb = size / 1024 / 1024;
                     Statistics.UncompressedSize += size;
-                    Log.Information("Export Success! Jobtype: {jobtype}, Jobname: {jobname}, Time: {elapsedms}, Backupfile: {backupfile}, Size: {size} ({sizemb} mb)",
-                        "sql", jobname, elapsedms, backupfile, size, sizemb);
+                    logger.Information("Export Success! Time: {elapsedms}, Backupfile: {backupfile}, Size: {size} ({sizemb} mb)",
+                        elapsedms, backupfile, size, sizemb);
                     return;
                 }
                 else
                 {
-                    Log.Warning("Export Fail! Binary: {binary}, Args: {commandargs}, Result: {result}, Jobtype: {jobtype}, Jobname: {jobname}, Time: {elapsedms}, Backupfile: {backupfile}",
-                        sqlpackagebinary, args, result, "sql", jobname, elapsedms, backupfile);
+                    logger.Warning("Export Fail! Binary: {binary}, Args: {commandargs}, Result: {result}, Time: {elapsedms}, Backupfile: {backupfile}",
+                        sqlpackagebinary, args, result, elapsedms, backupfile);
                 }
             }
 
             if (File.Exists(backupfile) && new FileInfo(backupfile).Length == 0)
             {
-                Log.Information("Deleting empty file: {backupfile}", backupfile);
+                logger.Information("Deleting empty file: {backupfile}", backupfile);
                 File.Delete(backupfile);
             }
 
-            Log.Warning("Couldn't export database to file: {backupfile}", backupfile);
+            logger.Warning("Couldn't export database to file: {backupfile}", backupfile);
         }
 
-        static void ExportCosmosDB(string jobname, string connstr, string collection, string backupfile)
+        static void ExportCosmosDB(ILogger logger, string jobname, string connstr, string collection, string backupfile)
         {
             string dtbinary = Tools.dtbinary;
 
             for (int tries = 0; tries < 5; tries++)
             {
-                Log.Information("Exporting {jobtype} {jobname} (try {tries}) -> {backupfile}",
-                    "cosmosdb", jobname, tries + 1, backupfile);
+                logger.Information("Exporting: (try {tries}) -> {backupfile}",
+                    tries + 1, backupfile);
 
                 Stopwatch watch = Stopwatch.StartNew();
 
@@ -155,12 +161,12 @@ namespace multibackup
 
                 if (new FileInfo(logfile).Length > 0)
                 {
-                    Log.Information("Reading logfile: {logfile}", logfile);
+                    logger.Information("Reading logfile: {logfile}", logfile);
                     string[] rows = File.ReadAllLines(logfile);
-                    Log.Information("dt results" + Environment.NewLine + "{log}", string.Join(Environment.NewLine, rows));
+                    logger.Information("dt results" + Environment.NewLine + "{log}", string.Join(Environment.NewLine, rows));
                 }
 
-                Log.Information("Deleting logfile: {logfile}", logfile);
+                logger.Information("Deleting logfile: {logfile}", logfile);
                 File.Delete(logfile);
 
                 if (result == 0 && File.Exists(backupfile) && new FileInfo(backupfile).Length > 0)
@@ -168,34 +174,34 @@ namespace multibackup
                     long size = new FileInfo(backupfile).Length;
                     long sizemb = size / 1024 / 1024;
                     Statistics.UncompressedSize += size;
-                    Log.Information("Export Success! Jobtype: {jobtype}, Jobname: {jobname}, Time: {elapsedms}, Backupfile: {backupfile}, Size: {size} ({sizemb} mb)",
-                        "cosmosb", jobname, elapsedms, backupfile, size, sizemb);
+                    logger.Information("Export Success! Time: {elapsedms}, Backupfile: {backupfile}, Size: {size} ({sizemb} mb)",
+                        elapsedms, backupfile, size, sizemb);
                     return;
                 }
                 else
                 {
-                    Log.Warning("Export Fail! Binary: {binary}, Args: {commandargs}, Result: {result}, Jobtype: {jobtype}, Jobname: {jobname}, Time: {elapsedms}, Backupfile: {backupfile}",
-                        dtbinary, args, result, "cosmosb", jobname, elapsedms, backupfile);
+                    logger.Warning("Export Fail! Binary: {binary}, Args: {commandargs}, Result: {result}, Time: {elapsedms}, Backupfile: {backupfile}",
+                        dtbinary, args, result, elapsedms, backupfile);
                 }
             }
 
             if (File.Exists(backupfile) && new FileInfo(backupfile).Length == 0)
             {
-                Log.Information("Deleting empty file: {backupfile}", backupfile);
+                logger.Information("Deleting empty file: {backupfile}", backupfile);
                 File.Delete(backupfile);
             }
 
-            Log.Warning("Couldn't export database to file: {backupfile}", backupfile);
+            logger.Warning("Couldn't export database to file: {backupfile}", backupfile);
         }
 
-        static void ExportAzureStorage(string jobname, string url, string key, string backupfolder)
+        static void ExportAzureStorage(ILogger logger, string jobname, string url, string key, string backupfolder)
         {
             string azcopybinary = Tools.azcopybinary;
 
             for (int tries = 0; tries < 5; tries++)
             {
-                Log.Information("Exporting {jobtype} {jobname} (try {tries}) -> {backupfolder}",
-                    "azurestorage", jobname, tries + 1, backupfolder);
+                logger.Information("Exporting: (try {tries}) -> {backupfolder}",
+                    tries + 1, backupfolder);
 
                 Stopwatch watch = Stopwatch.StartNew();
 
@@ -203,16 +209,16 @@ namespace multibackup
                 KillProcesses("azcopy.exe");
                 if (Directory.Exists(azcopyFolder))
                 {
-                    Log.Information("Deleting useless folder: {azcopyFolder}", azcopyFolder);
+                    logger.Information("Deleting useless folder: {azcopyFolder}", azcopyFolder);
                     Directory.Delete(azcopyFolder, true);
                 }
 
                 if (Directory.Exists(backupfolder))
                 {
-                    Log.Information("Deleting folder: {backupfolder}", backupfolder);
+                    logger.Information("Deleting folder: {backupfolder}", backupfolder);
                     RobustDelete(backupfolder);
                 }
-                Log.Information("Creating folder: {backupfolder}", backupfolder);
+                logger.Information("Creating folder: {backupfolder}", backupfolder);
                 Directory.CreateDirectory(backupfolder);
 
                 string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(azcopybinary));
@@ -227,12 +233,12 @@ namespace multibackup
 
                 if (new FileInfo(logfile).Length > 0)
                 {
-                    Log.Information("Reading logfile: {logfile}", logfile);
+                    logger.Information("Reading logfile: {logfile}", logfile);
                     string[] rows = File.ReadAllLines(logfile);
-                    Log.Information("azcopy results" + Environment.NewLine + "{log}", string.Join(Environment.NewLine, rows));
+                    logger.Information("azcopy results" + Environment.NewLine + "{log}", string.Join(Environment.NewLine, rows));
                 }
 
-                Log.Information("Deleting logfile: {logfile}", logfile);
+                logger.Information("Deleting logfile: {logfile}", logfile);
                 File.Delete(logfile);
 
                 if (result == 0 && Directory.Exists(backupfolder) && Directory.GetFiles(backupfolder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length) > 0)
@@ -240,44 +246,44 @@ namespace multibackup
                     long size = Directory.GetFiles(backupfolder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
                     long sizemb = size / 1024 / 1024;
                     Statistics.UncompressedSize += size;
-                    Log.Information("Export Success! Jobtype: {jobtype}, Jobname: {jobname}, Time: {elapsedms}, Backupfolder: {backupfolder}, Size: {size} ({sizemb} mb)",
-                        "azurestorage", jobname, elapsedms, backupfolder, size, sizemb);
+                    logger.Information("Export Success! Time: {elapsedms}, Backupfolder: {backupfolder}, Size: {size} ({sizemb} mb)",
+                        elapsedms, backupfolder, size, sizemb);
                     return;
                 }
                 else
                 {
-                    Log.Warning("Export Fail! Binary: {binary}, Args: {commandargs}, Result: {result}, Jobtype: {jobtype}, Jobname: {jobname}, Time: {elapsedms}, Backupfolder: {backupfolder}",
-                        azcopybinary, args, result, "azurestorage", jobname, elapsedms, backupfolder);
+                    logger.Warning("Export Fail! Binary: {binary}, Args: {commandargs}, Result: {result}, Time: {elapsedms}, Backupfolder: {backupfolder}",
+                        azcopybinary, args, result, elapsedms, backupfolder);
                 }
             }
 
             if (Directory.Exists(backupfolder) && Directory.GetFiles(backupfolder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length) == 0)
             {
-                Log.Information("Deleting empty folder: {backupfolder}", backupfolder);
+                logger.Information("Deleting empty folder: {backupfolder}", backupfolder);
                 RobustDelete(backupfolder);
             }
 
-            Log.Warning("Couldn't export database to folder: {backupfolder}", backupfolder);
+            logger.Warning("Couldn't export database to folder: {backupfolder}", backupfolder);
         }
 
-        static void EncryptBackup(string jobname, string type, string backuppath, string zipfile, string zippassword)
+        static void EncryptBackup(ILogger logger, string jobname, string jobtype, string backuppath, string zipfile, string zippassword)
         {
             string sevenzipbinary = Tools.sevenzipbinary;
 
-            if ((type == "sql" || type == "cosmosdb") && !File.Exists(backuppath))
+            if ((jobtype == "sql" || jobtype == "cosmosdb") && !File.Exists(backuppath))
             {
-                Log.Warning("Backup file not found, ignoring: {backuppath}", backuppath);
+                logger.Warning("Backup file not found, ignoring: {backuppath}", backuppath);
                 return;
             }
-            if (type == "azurestorage" && !Directory.Exists(backuppath))
+            if (jobtype == "azurestorage" && !Directory.Exists(backuppath))
             {
-                Log.Warning("Backup folder not found, ignoring: {backuppath}", backuppath);
+                logger.Warning("Backup folder not found, ignoring: {backuppath}", backuppath);
                 return;
             }
 
             Stopwatch watch = Stopwatch.StartNew();
 
-            string compression = type == "sql" ? "-mx0" : "-mx9";
+            string compression = jobtype == "sql" ? "-mx0" : "-mx9";
 
             string args = $"a {compression} {zipfile} {backuppath} -sdel -mhe -p{zippassword}";
 
@@ -291,13 +297,13 @@ namespace multibackup
                 long size = new FileInfo(zipfile).Length;
                 long sizemb = size / 1024 / 1024;
                 Statistics.CompressedSize += size;
-                Log.Information("Zip Success! Jobname: {jobname}, Time: {elapsedms}, Zipfile: {zipfile}, Size: {size} ({sizemb} mb)",
-                    jobname, elapsedms, zipfile, size, sizemb);
+                logger.Information("Zip Success! Time: {elapsedms}, Zipfile: {zipfile}, Size: {size} ({sizemb} mb)",
+                    elapsedms, zipfile, size, sizemb);
             }
             else
             {
-                Log.Warning("Zip Fail! Binary: {binary}, Args: {commandargs}, Result: {result}, Jobname: {jobname}, Time: {elapsedms}, Zipfile: {zipfile}",
-                    sevenzipbinary, args, result, jobname, elapsedms, zipfile);
+                logger.Warning("Zip Fail! Binary: {binary}, Args: {commandargs}, Result: {result}, Time: {elapsedms}, Zipfile: {zipfile}",
+                    sevenzipbinary, args, result, elapsedms, zipfile);
             }
         }
 

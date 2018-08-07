@@ -42,7 +42,8 @@ function Gather-Artifacts([string] $version)
     Log ("Creating folder: '" + $folder + "'")
     md $folder | Out-Null
 
-    copy -Recurse multibackup\bin\*\*\*\* backup\multibackup
+    copy backupjobs.json,backupschedule.xml $folder
+    copy -Recurse multibackup\bin\*\*\*\* (Join-Path $folder "multibackup")
 
 
     [string] $zipfile = "multibackup." + $version + ".zip"
