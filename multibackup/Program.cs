@@ -1,19 +1,18 @@
-﻿using System;
+﻿using Collector.Serilog.Enrichers.Assembly;
+using Collector.Serilog.Enrichers.Author;
+using Collector.Serilog.Sinks.AzureEventHub;
+using Destructurama;
+using Microsoft.Azure.EventHubs;
+using Newtonsoft.Json.Linq;
+using Serilog;
+using Serilog.Enrichers.AzureWebApps;
+using Serilog.Exceptions;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using Collector.Serilog.Enrichers.Assembly;
-using Collector.Serilog.Enrichers.Author;
-using Collector.Serilog.Sinks.AzureEventHub;
-using Destructurama;
-using Microsoft.Azure.EventHubs;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using Serilog;
-using Serilog.Enrichers.AzureWebApps;
-using Serilog.Exceptions;
 
 namespace multibackup
 {
@@ -97,9 +96,9 @@ namespace multibackup
 
             Stopwatch totalwatch = Stopwatch.StartNew();
 
-            string jsonfile = Path.Combine(appfolder, "backupjobs.json");
+            string[] jsonfiles = Directory.GetFiles(appfolder, "backupjobs*.json");
 
-            BackupJob[] backupjobs = BackupJob.LoadBackupJobs(jsonfile);
+            BackupJob[] backupjobs = BackupJob.LoadBackupJobs(jsonfiles);
 
             BackupJob.LogBackupJobs(backupjobs);
 

@@ -1,10 +1,17 @@
 {
+  "tags": {
+    "environment": "prod"
+  },
   "backupjobs": [
     {
       "type": "sql",
       "name": "myservice-test",
       "connectionstring": "#{connstr-myservice-test}",
-      "zippassword": "#{zippass-myservice-test}"
+      "zippassword": "#{zippass-myservice-test}",
+      "tags": {
+        "environment": "test",
+        "team": "one"
+      }
     },
     {
       "type": "cosmosdb",
@@ -13,8 +20,7 @@
       "collection": "#{collection-myservice-prod}",
       "zippassword": "#{zippass-myservice-prod}",
       "tags": {
-        "environment": "prod",
-        "team": "one"
+        "team": "two"
       }
     },
     {
@@ -25,7 +31,7 @@
       "zippassword": "#{zippass-myservice-dev}",
       "tags": {
         "environment": "dev",
-        "team": "two"
+        "team": "three"
       }
     }
   ]
