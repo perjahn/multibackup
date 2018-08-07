@@ -125,7 +125,7 @@ namespace multibackup
                 (long)Statistics.ZipTime.TotalMilliseconds, (long)Statistics.SendTime.TotalMilliseconds, (long)Statistics.TotalTime.TotalMilliseconds);
 
             Log.Information("Backup Finished! Total jobs: {TotalBackupJobs}, Success: {BackupSuccess}, Failed: {BackupFail}",
-                backupjobs.Length, Statistics.BackupSuccess, backupjobs.Length - Statistics.BackupSuccess);
+                backupjobs.Length, Statistics.SuccessCount, backupjobs.Length - Statistics.SuccessCount);
         }
 
         static JObject LoadAppSettings()

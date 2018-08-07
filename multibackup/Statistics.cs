@@ -6,7 +6,7 @@ namespace multibackup
 {
     class Statistics
     {
-        public static int BackupSuccess { get; set; }
+        public static int SuccessCount { get; set; }
         public static long UncompressedSize { get; set; }
         public static long CompressedSize { get; set; }
         public static TimeSpan ExportSqlTime { get; set; }

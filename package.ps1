@@ -42,7 +42,6 @@ function Gather-Artifacts([string] $version)
     Log ("Creating folder: '" + $folder + "'")
     md $folder | Out-Null
 
-    copy -Recurse (Join-Path tools *) backup -Exclude multibackup
     copy -Recurse multibackup\bin\*\*\*\* backup\multibackup
 
 
