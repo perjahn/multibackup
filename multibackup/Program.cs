@@ -76,6 +76,11 @@ namespace multibackup
             string targetServer = settings.TargetServer;
             string targetAccount = settings.TargetAccount;
 
+            string preBackupAction = settings.PreBackupAction;
+            string preBackupActionArgs = settings.PreBackupActionArgs;
+            string postBackupAction = settings.PostBackupAction;
+            string postBackupActionArgs = settings.PostBackupActionArgs;
+
             if (targetServer == null)
             {
                 string errorMessage = "Missing TargetServer configuration in appsettings.json";
@@ -95,6 +100,8 @@ namespace multibackup
 
 
             Stopwatch totalwatch = Stopwatch.StartNew();
+
+            RunCommand(preBackupAction, preBackupActionArgs);
 
             string[] jsonfiles = Directory.GetFiles(appfolder, "backupjobs*.json");
 
@@ -127,9 +134,11 @@ namespace multibackup
                 .ForContext("SyncTimeMS", (long)Statistics.SyncTime.TotalMilliseconds)
                 .ForContext("TotalTimeMS", (long)Statistics.TotalTime.TotalMilliseconds)
                 .ForContext("TotalBackupJobs", backupjobs.Length)
-                .ForContext("BackupSuccess", Statistics.SuccessCount)
-                .ForContext("BackupFail", backupjobs.Length - Statistics.SuccessCount)
+                .ForContext("BackupSuccessCount", Statistics.SuccessCount)
+                .ForContext("BackupFailCount", backupjobs.Length - Statistics.SuccessCount)
                 .Information("Backup finished");
+
+            RunCommand(postBackupAction, postBackupActionArgs);
         }
 
         static JObject LoadAppSettings()
@@ -209,6 +218,31 @@ namespace multibackup
             {
                 return string.Empty;
             }
+        }
+
+        static int RunCommand(string binary, string args)
+        {
+            if (binary == null)
+            {
+                return 0;
+            }
+
+            Process process = new Process
+            {
+                StartInfo = new ProcessStartInfo(binary, args)
+                {
+                    UseShellExecute = false
+                }
+            };
+
+            Log.Debug("Running: >>{Binary}<< >>{Commandargs}<<", binary, args);
+
+            process.Start();
+            process.WaitForExit();
+
+            Log.Debug("Ran: >>{Binary}<< >>{Commandargs}<< ExitCode: {ExitCode}", binary, args, process.ExitCode);
+
+            return process.ExitCode;
         }
     }
 }
