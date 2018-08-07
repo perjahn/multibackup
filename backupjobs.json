@@ -4,7 +4,7 @@
   },
   "backupjobs": [
     {
-      "type": "sql",
+      "type": "sqlserver",
       "name": "myservice-test",
       "connectionstring": "#{connstr-myservice-test}",
       "zippassword": "#{zippass-myservice-test}",

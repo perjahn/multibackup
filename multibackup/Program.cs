@@ -20,52 +20,52 @@ namespace multibackup
     {
         static int Main(string[] args)
         {
-            string[] parsedArgs = ParseArgs(args, out bool backupSqlDB, out bool backupCosmosDB, out bool backupAzureStorage);
+            string[] parsedArgs = ParseArgs(args, out bool backupSqlServer, out bool backupCosmosDB, out bool backupAzureStorage);
             if (parsedArgs.Length > 0)
             {
                 string version = GetAppVersion();
-                Console.WriteLine($"multibackup {version}{Environment.NewLine}{Environment.NewLine}Usage: multibackup.exe [-OnlyBackupSqlDB] [-OnlyBackupCosmosDB] [-OnlyBackupAzureStorage]");
+                Console.WriteLine($"multibackup {version}{Environment.NewLine}{Environment.NewLine}Usage: multibackup.exe [-OnlyBackupSqlServer] [-OnlyBackupCosmosDB] [-OnlyBackupAzureStorage]");
                 return 1;
             }
 
             try
             {
-                DoExceptionalStuff(backupSqlDB, backupCosmosDB, backupAzureStorage);
+                DoExceptionalStuff(backupSqlServer, backupCosmosDB, backupAzureStorage);
             }
             catch (Exception ex)
             {
-                Log.Error("Exception: {exception}", ex);
+                Log.Error("Exception: {Exception}", ex);
                 return 1;
             }
 
             return 0;
         }
 
-        static string[] ParseArgs(string[] args, out bool backupSqlDB, out bool backupCosmosDB, out bool backupAzureStorage)
+        static string[] ParseArgs(string[] args, out bool backupSqlServer, out bool backupCosmosDB, out bool backupAzureStorage)
         {
-            backupSqlDB = true;
+            backupSqlServer = true;
             backupCosmosDB = true;
             backupAzureStorage = true;
-            if (args.Contains("-OnlyBackupSqlDB"))
+            if (args.Contains("-OnlyBackupSqlServer"))
             {
                 backupCosmosDB = false;
                 backupAzureStorage = false;
             }
             if (args.Contains("-OnlyBackupCosmosDB"))
             {
-                backupSqlDB = false;
+                backupSqlServer = false;
                 backupAzureStorage = false;
             }
             if (args.Contains("-OnlyBackupAzureStorage"))
             {
-                backupSqlDB = false;
+                backupSqlServer = false;
                 backupCosmosDB = false;
             }
 
             return args.Where(a => !a.StartsWith("-")).ToArray();
         }
 
-        static void DoExceptionalStuff(bool backupSqlDB, bool backupCosmosDB, bool backupAzureStorage)
+        static void DoExceptionalStuff(bool backupSqlServer, bool backupCosmosDB, bool backupAzureStorage)
         {
             dynamic settings = LoadAppSettings();
 
@@ -108,23 +108,28 @@ namespace multibackup
 
             string exportfolder = Path.Combine(appfolder, "export");
             string zipfolder = Path.Combine(appfolder, "backups");
-            Backup.ExportBackups(backupjobs, exportfolder, date, backupSqlDB, backupCosmosDB, backupAzureStorage, zipfolder);
+            Backup.ExportBackups(backupjobs, exportfolder, date, backupSqlServer, backupCosmosDB, backupAzureStorage, zipfolder);
 
-            Backup.SendBackups(zipfolder, targetServer, targetAccount);
+            Backup.SyncBackups(zipfolder, targetServer, targetAccount);
 
             totalwatch.Stop();
             Statistics.TotalTime = totalwatch.Elapsed;
 
-
-            Log.Information("Uncompressed size: {UncompressedSize} ({UncompressedSizeMB} mb), Compressed size: {CompressedSize} ({CompressedSizeMB} mb)",
-                Statistics.UncompressedSize, Statistics.UncompressedSize / 1024 / 1024, Statistics.CompressedSize, Statistics.CompressedSize / 1024 / 1024);
-
-            Log.Information("Export sql time: {ExportSqlTimeMS}, Export cosmos time: {ExportCosmosTimeMS}, Export storage time: {ExportAzureStorageTimeMS}, Zip time: {ZipTimeMS}, Send time: {SendTimeMS}, Total time: {TotalTimeMS}",
-                (long)Statistics.ExportSqlTime.TotalMilliseconds, (long)Statistics.ExportCosmosTime.TotalMilliseconds, (long)Statistics.ExportAzureStorageTime.TotalMilliseconds,
-                (long)Statistics.ZipTime.TotalMilliseconds, (long)Statistics.SendTime.TotalMilliseconds, (long)Statistics.TotalTime.TotalMilliseconds);
-
-            Log.Information("Backup Finished! Total jobs: {TotalBackupJobs}, Success: {BackupSuccess}, Failed: {BackupFail}",
-                backupjobs.Length, Statistics.SuccessCount, backupjobs.Length - Statistics.SuccessCount);
+            Log
+                .ForContext("UncompressedSize", Statistics.UncompressedSize)
+                .ForContext("UncompressedSizeMB", Statistics.UncompressedSize / 1024 / 1024)
+                .ForContext("CompressedSize", Statistics.CompressedSize)
+                .ForContext("CompressedSizeMB", Statistics.CompressedSize / 1024 / 1024)
+                .ForContext("ExportSqlServerTimeMS", (long)Statistics.ExportSqlServerTime.TotalMilliseconds)
+                .ForContext("ExportCosmosDBTimeMS", (long)Statistics.ExportCosmosDBTime.TotalMilliseconds)
+                .ForContext("ExportAzureStorageTimeMS", (long)Statistics.ExportAzureStorageTime.TotalMilliseconds)
+                .ForContext("ZipTimeMS", (long)Statistics.ZipTime.TotalMilliseconds)
+                .ForContext("SyncTimeMS", (long)Statistics.SyncTime.TotalMilliseconds)
+                .ForContext("TotalTimeMS", (long)Statistics.TotalTime.TotalMilliseconds)
+                .ForContext("TotalBackupJobs", backupjobs.Length)
+                .ForContext("BackupSuccess", Statistics.SuccessCount)
+                .ForContext("BackupFail", backupjobs.Length - Statistics.SuccessCount)
+                .Information("Backup finished");
         }
 
         static JObject LoadAppSettings()
@@ -167,14 +172,14 @@ namespace multibackup
 
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IsDevelopment")))
             {
-                Console.WriteLine("IsDevelopment set: Logging to console!");
+                Console.WriteLine("IsDevelopment set: Logging to console");
                 config = config
                     .MinimumLevel.Debug()
                     .WriteTo.Console();
             }
             else if (eventHubConnectionString == null)
             {
-                Console.WriteLine("EventHubConnectionString missing in appsettings.json: Logging to console!");
+                Console.WriteLine("EventHubConnectionString missing in appsettings.json: Logging to console");
                 config = config
                     .MinimumLevel.Debug()
                     .WriteTo.Console();
@@ -191,7 +196,7 @@ namespace multibackup
 
             string version = GetAppVersion();
 
-            Log.Logger.Information("Logger initiliazed: {version}", version);
+            Log.Logger.Information("Logger initiliazed: {Version}", version);
         }
 
         static string GetAppVersion()

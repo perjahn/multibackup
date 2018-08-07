@@ -27,7 +27,7 @@ namespace multibackup
 
             foreach (var jsonfile in jsonfiles)
             {
-                Log.Information("Reading: {jsonfile}", jsonfile);
+                Log.Information("Reading: {Jsonfile}", jsonfile);
                 string content = File.ReadAllText(jsonfile);
                 dynamic json = JObject.Parse(content);
 
@@ -42,7 +42,7 @@ namespace multibackup
 
                 if (json.backupjobs == null || json.backupjobs.Count == 0)
                 {
-                    Log.Error("Couldn't find any backupjobs in file: {jsonfile}", jsonfile);
+                    Log.Error("Couldn't find any backupjobs in file: {Jsonfile}", jsonfile);
                     throw new Exception($"Couldn't find any backupjobs in file: '{jsonfile}'");
                 }
 
@@ -58,19 +58,19 @@ namespace multibackup
 
                     if (backupjob.type == null)
                     {
-                        Log.Warning("Backup job {index} missing type field, ignoring backup job.", backupjob.index.Value);
+                        Log.Warning("Backup job {Index} missing type field, ignoring backup job.", backupjob.index.Value);
                         json.backupjobs[i].Remove();
                         continue;
                     }
                     if (backupjob.name == null)
                     {
-                        Log.Warning("Backup job {index} missing name field, ignoring backup job.", backupjob.index.Value);
+                        Log.Warning("Backup job {Index} missing name field, ignoring backup job.", backupjob.index.Value);
                         json.backupjobs[i].Remove();
                         continue;
                     }
                     if (backupjob.zippassword == null)
                     {
-                        Log.Warning("Backup job {index} missing zippassword field, ignoring backup job.", backupjob.index.Value);
+                        Log.Warning("Backup job {Index} missing zippassword field, ignoring backup job.", backupjob.index.Value);
                         json.backupjobs[i].Remove();
                         continue;
                     }
@@ -89,11 +89,11 @@ namespace multibackup
                     }
 
 
-                    if (type == "sql")
+                    if (type == "sqlserver")
                     {
                         if (backupjob.connectionstring == null)
                         {
-                            Log.Warning("Backup job {index} ({type}, {name}) is missing connectionstring field, ignoring backup job.",
+                            Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) is missing connectionstring field, ignoring backup job.",
                                 backupjob.index.Value, type, name);
                             json.backupjobs[i].Remove();
                             continue;
@@ -104,7 +104,7 @@ namespace multibackup
                     {
                         if (backupjob.connectionstring == null)
                         {
-                            Log.Warning("Backup job {index} ({type}, {name}) is missing connectionstring field, ignoring backup job.",
+                            Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) is missing connectionstring field, ignoring backup job.",
                                 backupjob.index.Value, type, name);
                             json.backupjobs[i].Remove();
                             continue;
@@ -112,7 +112,7 @@ namespace multibackup
                         connectionstring = backupjob.connectionstring.Value;
                         if (backupjob.collection == null)
                         {
-                            Log.Warning("Backup job {index} ({type}, {name}) is missing collection field, ignoring backup job.",
+                            Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) is missing collection field, ignoring backup job.",
                                 backupjob.index.Value, type, name);
                             json.backupjobs[i].Remove();
                             continue;
@@ -123,7 +123,7 @@ namespace multibackup
                     {
                         if (backupjob.url == null)
                         {
-                            Log.Warning("Backup job {index} ({type}, {name}) is missing url field, ignoring backup job.",
+                            Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) is missing url field, ignoring backup job.",
                                 backupjob.index.Value, type, name);
                             json.backupjobs[i].Remove();
                             continue;
@@ -131,7 +131,7 @@ namespace multibackup
                         url = backupjob.url.Value;
                         if (backupjob.key == null)
                         {
-                            Log.Warning("Backup job {index} ({type}, {name}) is missing key field, ignoring backup job.",
+                            Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) is missing key field, ignoring backup job.",
                                 backupjob.index.Value, type, name);
                             json.backupjobs[i].Remove();
                             continue;
@@ -140,7 +140,7 @@ namespace multibackup
                     }
                     else
                     {
-                        Log.Warning("Backup job {index} ({type}, {name}) has unsupported backup type, ignoring backup job.",
+                        Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) has unsupported backup type, ignoring backup job.",
                             backupjob.index.Value, type, name);
                         json.backupjobs[i].Remove();
                         continue;
@@ -152,7 +152,7 @@ namespace multibackup
                     {
                         if (json.backupjobs[j].name.Value == backupjob.name.Value && json.backupjobs[j].type.Value == backupjob.type.Value)
                         {
-                            Log.Warning("Backup job {index} ({type}, {name}) duplicate name of {duplicate}, ignoring backup job.",
+                            Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) duplicate name of {Duplicate}, ignoring backup job.",
                                 backupjob.index.Value, type, name, json.backupjobs[j].index.Value);
                             json.backupjobs[i].Remove();
                             founddup = true;
@@ -189,12 +189,12 @@ namespace multibackup
 
                 if (backupjobs.Count == 0)
                 {
-                    Log.Error("Couldn't find any valid backup jobs in file: {jsonfile}", jsonfile);
+                    Log.Error("Couldn't find any valid backup jobs in file: {Jsonfile}", jsonfile);
                     throw new Exception($"Couldn't find any valid backup jobs in file: '{jsonfile}'");
                 }
             }
 
-            Log.Information("Found {backupjobs} valid backup jobs.", backupjobs.Count);
+            Log.Information("Found {Backupjobs} valid backup jobs.", backupjobs.Count);
 
             return backupjobs.ToArray();
         }
@@ -207,7 +207,7 @@ namespace multibackup
             {
                 BackupJob backupjob = backupjobs[i];
 
-                string type = backupjob.Type ?? "sql";
+                string type = backupjob.Type ?? "sqlserver";
                 if (typecounts.ContainsKey(type))
                 {
                     typecounts[type]++;
@@ -224,11 +224,15 @@ namespace multibackup
                     logger = logger.ForContext(key, tags[key]);
                 }
 
-                logger.Information("Jobname: {Jobname} Jobtype: {Jobtype}", backupjob.Name, type);
+                logger.Information("Jobname: {Jobname}, Jobtype: {Jobtype}", backupjob.Name, type);
             }
 
-            Log.Information("Backup counts: sql: {sql}, cosmosdb: {cosmosdb}, azurestorage: {azurestorage}, total: {totalcount}",
-                typecounts["sql"], typecounts["cosmosdb"], typecounts["azurestorage"], backupjobs.Length);
+            Log
+                .ForContext("SqlServerCount", typecounts["sqlserver"])
+                .ForContext("CosmosDBCount", typecounts["cosmosdb"])
+                .ForContext("AzureStorageCount", typecounts["azurestorage"])
+                .ForContext("TotalCount", backupjobs.Length)
+                .Information("Backup counts");
         }
     }
 }

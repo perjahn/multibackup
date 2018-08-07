@@ -26,36 +26,36 @@ namespace multibackup
 
             if (!File.Exists(sqlpackagebinary))
             {
-                Log.Error("Couldn't find {sqlpackagebinary}", sqlpackagebinary);
+                Log.Error("Couldn't find {Binary}", sqlpackagebinary);
                 throw new Exception($"Couldn't find '{sqlpackagebinary}'");
             }
             if (!File.Exists(dtbinary))
             {
-                Log.Error("Couldn't find {dtbinary}", dtbinary);
+                Log.Error("Couldn't find {Binary}", dtbinary);
                 throw new Exception($"Couldn't find '{dtbinary}'");
             }
             if (!File.Exists(azcopybinary))
             {
-                Log.Error("Couldn't find {azcopybinary}", azcopybinary);
+                Log.Error("Couldn't find {Binary}", azcopybinary);
                 throw new Exception($"Couldn't find '{azcopybinary}'");
             }
             if (!File.Exists(sevenzipbinary))
             {
-                Log.Error("Couldn't find {sevenzipbinary}", sevenzipbinary);
+                Log.Error("Couldn't find {Binary}", sevenzipbinary);
                 throw new Exception($"Couldn't find '{sevenzipbinary}'");
             }
             if (!File.Exists(rsyncbinary))
             {
-                Log.Error("Couldn't find {rsyncbinary}", rsyncbinary);
+                Log.Error("Couldn't find {Binary}", rsyncbinary);
                 throw new Exception($"Couldn't find '{rsyncbinary}'");
             }
 
 
-            Log.Information("Using export tool: {sqlpackagebinary}", sqlpackagebinary);
-            Log.Information("Using export tool: {dtbinary}", dtbinary);
-            Log.Information("Using export tool: {azcopybinary}", azcopybinary);
-            Log.Information("Using zip tool: {sevenzipbinary}", sevenzipbinary);
-            Log.Information("Using rsync tool: {rsyncbinary}", rsyncbinary);
+            Log.Information("Using sqlserver export tool: {Binary}", sqlpackagebinary);
+            Log.Information("Using cosmosdb export tool: {Binary}", dtbinary);
+            Log.Information("Using azurestorage export tool: {Binary}", azcopybinary);
+            Log.Information("Using zip tool: {Binary}", sevenzipbinary);
+            Log.Information("Using rsync tool: {Binary}", rsyncbinary);
         }
     }
 }
