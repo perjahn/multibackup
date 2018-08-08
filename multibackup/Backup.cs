@@ -27,67 +27,74 @@ namespace multibackup
                 string jobname = backupjob.Name;
                 string backuppath;
 
-                Dictionary<string, string> tags = backupjob.Tags;
-                var logger = Log.ForContext("Jobname", jobname).ForContext("Jobtype", jobtype);
-                foreach (var key in tags.Keys)
+                using (new ContextLogger(backupjob.Tags))
                 {
-                    logger = logger.ForContext(key, tags[key]);
-                }
+                    Log.Logger = Log.ForContext("Jobname", jobname).ForContext("Jobtype", jobtype);
 
-                if (jobtype == "sqlserver")
-                {
-                    string connstr = backupjob.ConnectionString;
-                    backuppath = Path.Combine(backupfolder, $"sqlserver_{backupjob.Name}_{date}.bacpac");
-                    if (backupSqlServer)
+                    if (jobtype == "sqlserver")
                     {
-                        ExportSqlServer(logger, jobname, connstr, backuppath);
+                        string connstr = backupjob.ConnectionString;
+                        backuppath = Path.Combine(backupfolder, $"sqlserver_{backupjob.Name}_{date}.bacpac");
+                        if (backupSqlServer)
+                        {
+                            ExportSqlServer(jobname, connstr, backuppath);
+                        }
+                    }
+                    else if (jobtype == "cosmosdb")
+                    {
+                        string connstr = backupjob.ConnectionString;
+                        backuppath = Path.Combine(backupfolder, $"cosmosdb_{backupjob.Name}_{date}.json");
+                        string collection = backupjob.Collection;
+                        if (backupCosmosDB)
+                        {
+                            ExportCosmosDB(jobname, connstr, collection, backuppath);
+                        }
+                    }
+                    else if (jobtype == "azurestorage")
+                    {
+                        string url = backupjob.Url;
+                        string key = backupjob.Key;
+                        backuppath = Path.Combine(backupfolder, $"azurestorage_{backupjob.Name}_{date}");
+                        if (backupAzureStorage)
+                        {
+                            ExportAzureStorage(jobname, url, key, backuppath);
+                        }
+                    }
+                    else
+                    {
+                        Log.Warning("Unsupported database type");
+                        continue;
+                    }
+
+
+                    string zipfile = Path.ChangeExtension(Path.GetFileName(backuppath), ".7z");
+                    string zippassword = backupjob.ZipPassword;
+
+                    string oldfolder = null;
+                    try
+                    {
+                        oldfolder = Directory.GetCurrentDirectory();
+                        Directory.SetCurrentDirectory(zipfolder);
+
+                        EncryptBackup(jobname, jobtype, backuppath, zipfile, zippassword);
+
+                        if (File.Exists(zipfile))
+                        {
+                            Statistics.SuccessCount++;
+                        }
+                        else
+                        {
+                            Log.Warning("Backupjob failed");
+                        }
+                    }
+                    finally
+                    {
+                        if (oldfolder != null)
+                        {
+                            Directory.SetCurrentDirectory(oldfolder);
+                        }
                     }
                 }
-                else if (jobtype == "cosmosdb")
-                {
-                    string connstr = backupjob.ConnectionString;
-                    backuppath = Path.Combine(backupfolder, $"cosmosdb_{backupjob.Name}_{date}.json");
-                    string collection = backupjob.Collection;
-                    if (backupCosmosDB)
-                    {
-                        ExportCosmosDB(logger, jobname, connstr, collection, backuppath);
-                    }
-                }
-                else if (jobtype == "azurestorage")
-                {
-                    string url = backupjob.Url;
-                    string key = backupjob.Key;
-                    backuppath = Path.Combine(backupfolder, $"azurestorage_{backupjob.Name}_{date}");
-                    if (backupAzureStorage)
-                    {
-                        ExportAzureStorage(logger, jobname, url, key, backuppath);
-                    }
-                }
-                else
-                {
-                    logger.Warning("Unsupported database type");
-                    continue;
-                }
-
-
-                string zipfile = Path.ChangeExtension(Path.GetFileName(backuppath), ".7z");
-                string zippassword = backupjob.ZipPassword;
-
-                string oldfolder = Directory.GetCurrentDirectory();
-                Directory.SetCurrentDirectory(zipfolder);
-
-                EncryptBackup(logger, jobname, jobtype, backuppath, zipfile, zippassword);
-
-                if (File.Exists(zipfile))
-                {
-                    Statistics.SuccessCount++;
-                }
-                else
-                {
-                    logger.Warning("Backupjob failed");
-                }
-
-                Directory.SetCurrentDirectory(oldfolder);
             }
 
             Log
@@ -95,223 +102,225 @@ namespace multibackup
                 .Information("Done exporting");
         }
 
-        static void ExportSqlServer(ILogger logger, string jobname, string connstr, string backupfile)
+        static void ExportSqlServer(string jobname, string connstr, string backupfile)
         {
             string sqlpackagebinary = Tools.sqlpackagebinary;
 
-            for (int tries = 0; tries < 5; tries++)
+            for (int tries = 1; tries <= 5; tries++)
             {
-                logger
-                    .ForContext("Tries", tries + 1)
-                    .Information("Exporting: {Backupfile}", backupfile);
-
-                Stopwatch watch = Stopwatch.StartNew();
-
-                string args = $"/a:Export /tf:{backupfile} /scs:\"{connstr}\"";
-
-                int result = RunCommand(sqlpackagebinary, args);
-                watch.Stop();
-                Statistics.ExportSqlServerTime += watch.Elapsed;
-                long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
-
-                if (result == 0 && File.Exists(backupfile) && new FileInfo(backupfile).Length > 0)
+                using (new ContextLogger(new Dictionary<string, object>() { ["Tries"] = tries }))
                 {
-                    long size = new FileInfo(backupfile).Length;
-                    long sizemb = size / 1024 / 1024;
-                    Statistics.UncompressedSize += size;
-                    logger
-                        .ForContext("ElapsedMS", elapsedms)
-                        .ForContext("Backupfile", backupfile)
-                        .ForContext("Size", size)
-                        .ForContext("SizeMB", sizemb)
-                        .Information("Export success");
-                    return;
-                }
-                else
-                {
-                    logger
-                        .ForContext("Binary", sqlpackagebinary)
-                        .ForContext("Commandargs", args)
-                        .ForContext("Result", result)
-                        .ForContext("ElapsedMS", elapsedms)
-                        .ForContext("Backupfile", backupfile)
-                        .Warning("Export fail", backupfile);
+                    Log.Information("Exporting: {Backupfile}", backupfile);
+
+                    Stopwatch watch = Stopwatch.StartNew();
+
+                    string args = $"/a:Export /tf:{backupfile} /scs:\"{connstr}\"";
+
+                    int result = RunCommand(sqlpackagebinary, args);
+                    watch.Stop();
+                    Statistics.ExportSqlServerTime += watch.Elapsed;
+                    long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
+
+                    if (result == 0 && File.Exists(backupfile) && new FileInfo(backupfile).Length > 0)
+                    {
+                        long size = new FileInfo(backupfile).Length;
+                        long sizemb = size / 1024 / 1024;
+                        Statistics.UncompressedSize += size;
+                        Log
+                            .ForContext("ElapsedMS", elapsedms)
+                            .ForContext("Backupfile", backupfile)
+                            .ForContext("Size", size)
+                            .ForContext("SizeMB", sizemb)
+                            .Information("Export success");
+                        return;
+                    }
+                    else
+                    {
+                        Log
+                            .ForContext("Binary", sqlpackagebinary)
+                            .ForContext("Commandargs", args)
+                            .ForContext("Result", result)
+                            .ForContext("ElapsedMS", elapsedms)
+                            .ForContext("Backupfile", backupfile)
+                            .Warning("Export fail", backupfile);
+                    }
                 }
             }
 
             if (File.Exists(backupfile) && new FileInfo(backupfile).Length == 0)
             {
-                logger.Information("Deleting empty file: {Backupfile}", backupfile);
+                Log.Information("Deleting empty file: {Backupfile}", backupfile);
                 File.Delete(backupfile);
             }
 
-            logger.Warning("Couldn't export database to file: {Backupfile}", backupfile);
+            Log.Warning("Couldn't export database to file: {Backupfile}", backupfile);
         }
 
-        static void ExportCosmosDB(ILogger logger, string jobname, string connstr, string collection, string backupfile)
+        static void ExportCosmosDB(string jobname, string connstr, string collection, string backupfile)
         {
             string dtbinary = Tools.dtbinary;
 
-            for (int tries = 0; tries < 5; tries++)
+            for (int tries = 1; tries <= 5; tries++)
             {
-                logger
-                    .ForContext("Tries", tries + 1)
-                    .Information("Exporting: {Backupfile}", backupfile);
-
-                Stopwatch watch = Stopwatch.StartNew();
-
-                string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(dtbinary));
-                string logfile = GetLogFile(appfolder, jobname);
-
-                string args = $"/ErrorLog:{logfile} /ErrorDetails:All /s:DocumentDB /s.ConnectionString:{connstr} /s.Collection:{collection} /t:JsonFile /t.File:{backupfile} /t.Prettify";
-
-                int result = RunCommand(dtbinary, args);
-                watch.Stop();
-                Statistics.ExportCosmosDBTime += watch.Elapsed;
-                long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
-
-                if (new FileInfo(logfile).Length > 0)
+                using (new ContextLogger(new Dictionary<string, object>() { ["Tries"] = tries }))
                 {
-                    logger.Information("Reading logfile: {Logfile}", logfile);
-                    string[] rows = File.ReadAllLines(logfile);
-                    logger
-                        .ForContext("Logfile", rows)
-                        .Information("dt results");
-                }
+                    Log.Information("Exporting: {Backupfile}", backupfile);
 
-                logger.Information("Deleting logfile: {Logfile}", logfile);
-                File.Delete(logfile);
+                    Stopwatch watch = Stopwatch.StartNew();
 
-                if (result == 0 && File.Exists(backupfile) && new FileInfo(backupfile).Length > 0)
-                {
-                    long size = new FileInfo(backupfile).Length;
-                    long sizemb = size / 1024 / 1024;
-                    Statistics.UncompressedSize += size;
-                    logger
-                        .ForContext("ElapsedMS", elapsedms)
-                        .ForContext("Backupfile", backupfile)
-                        .ForContext("Size", size)
-                        .ForContext("SizeMB", sizemb)
-                        .Information("Export success");
-                    return;
-                }
-                else
-                {
-                    logger
-                        .ForContext("Binary", dtbinary)
-                        .ForContext("Commandargs", args)
-                        .ForContext("Result", result)
-                        .ForContext("ElapsedMS", elapsedms)
-                        .ForContext("Backupfile", backupfile)
-                        .Warning("Export fail");
+                    string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(dtbinary));
+                    string logfile = GetLogFileName(appfolder, jobname);
+
+                    string args = $"/ErrorLog:{logfile} /ErrorDetails:All /s:DocumentDB /s.ConnectionString:{connstr} /s.Collection:{collection} /t:JsonFile /t.File:{backupfile} /t.Prettify";
+
+                    int result = RunCommand(dtbinary, args);
+                    watch.Stop();
+                    Statistics.ExportCosmosDBTime += watch.Elapsed;
+                    long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
+
+                    if (new FileInfo(logfile).Length > 0)
+                    {
+                        Log.Information("Reading logfile: {Logfile}", logfile);
+                        string[] rows = File.ReadAllLines(logfile);
+                        Log.ForContext("LogfileContent", TruncateLogFileContent(rows)).Information("dt results");
+                    }
+
+                    Log.Information("Deleting logfile: {Logfile}", logfile);
+                    File.Delete(logfile);
+
+                    if (result == 0 && File.Exists(backupfile) && new FileInfo(backupfile).Length > 0)
+                    {
+                        long size = new FileInfo(backupfile).Length;
+                        long sizemb = size / 1024 / 1024;
+                        Statistics.UncompressedSize += size;
+                        Log
+                            .ForContext("ElapsedMS", elapsedms)
+                            .ForContext("Backupfile", backupfile)
+                            .ForContext("Size", size)
+                            .ForContext("SizeMB", sizemb)
+                            .Information("Export success");
+                        return;
+                    }
+                    else
+                    {
+                        Log
+                            .ForContext("Binary", dtbinary)
+                            .ForContext("Commandargs", args)
+                            .ForContext("Result", result)
+                            .ForContext("ElapsedMS", elapsedms)
+                            .ForContext("Backupfile", backupfile)
+                            .Warning("Export fail");
+                    }
                 }
             }
 
             if (File.Exists(backupfile) && new FileInfo(backupfile).Length == 0)
             {
-                logger.Information("Deleting empty file: {Backupfile}", backupfile);
+                Log.Information("Deleting empty file: {Backupfile}", backupfile);
                 File.Delete(backupfile);
             }
 
-            logger.Warning("Couldn't export database to file: {Backupfile}", backupfile);
+            Log.Warning("Couldn't export database to file: {Backupfile}", backupfile);
         }
 
-        static void ExportAzureStorage(ILogger logger, string jobname, string url, string key, string backupfolder)
+        static void ExportAzureStorage(string jobname, string url, string key, string backupfolder)
         {
             string azcopybinary = Tools.azcopybinary;
 
-            for (int tries = 0; tries < 5; tries++)
+            for (int tries = 1; tries <= 5; tries++)
             {
-                logger
-                    .ForContext("Tries", tries + 1)
-                    .Information("Exporting: {Backupfolder}", backupfolder);
-
-                Stopwatch watch = Stopwatch.StartNew();
-
-                string azcopyFolder = Path.Combine(Environment.GetEnvironmentVariable("LocalAppData"), "Microsoft", "Azure", "AzCopy");
-                KillProcesses("azcopy.exe");
-                if (Directory.Exists(azcopyFolder))
+                using (new ContextLogger(new Dictionary<string, object>() { ["Tries"] = tries }))
                 {
-                    logger.Information("Deleting useless folder: {AzcopyFolder}", azcopyFolder);
-                    Directory.Delete(azcopyFolder, true);
-                }
+                    Log.Information("Exporting: {Backupfolder}", backupfolder);
 
-                if (Directory.Exists(backupfolder))
-                {
-                    logger.Information("Deleting folder: {Backupfolder}", backupfolder);
-                    RobustDelete(backupfolder);
-                }
-                logger.Information("Creating folder: {Backupfolder}", backupfolder);
-                Directory.CreateDirectory(backupfolder);
+                    Stopwatch watch = Stopwatch.StartNew();
 
-                string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(azcopybinary));
-                string logfile = GetLogFile(appfolder, jobname);
-                string subdirs = Regex.IsMatch(url, "^https://[a-z]*\\.blob\\.core\\.windows\\.net") ? " /S" : string.Empty;
+                    string azcopyFolder = Path.Combine(Environment.GetEnvironmentVariable("LocalAppData"), "Microsoft", "Azure", "AzCopy");
+                    KillProcesses("azcopy.exe");
+                    if (Directory.Exists(azcopyFolder))
+                    {
+                        Log.Information("Deleting useless folder: {AzcopyFolder}", azcopyFolder);
+                        Directory.Delete(azcopyFolder, true);
+                    }
 
-                string args = $"/Source:{url} /Dest:{backupfolder} /SourceKey:{key} /V:{logfile}" + subdirs;
-                int result = RunCommand(azcopybinary, args);
-                watch.Stop();
-                Statistics.ExportAzureStorageTime += watch.Elapsed;
-                long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
+                    if (Directory.Exists(backupfolder))
+                    {
+                        Log.Information("Deleting folder: {Backupfolder}", backupfolder);
+                        RobustDelete(backupfolder);
+                    }
+                    Log.Information("Creating folder: {Backupfolder}", backupfolder);
+                    Directory.CreateDirectory(backupfolder);
 
-                if (new FileInfo(logfile).Length > 0)
-                {
-                    logger.Information("Reading logfile: {Logfile}", logfile);
-                    string[] rows = File.ReadAllLines(logfile);
-                    logger
-                        .ForContext("Logfile", rows)
-                        .Information("azcopy results");
-                }
+                    string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(azcopybinary));
+                    string logfile = GetLogFileName(appfolder, jobname);
+                    string subdirs = Regex.IsMatch(url, "^https://[a-z]*\\.blob\\.core\\.windows\\.net") ? " /S" : string.Empty;
 
-                logger.Information("Deleting logfile: {Logfile}", logfile);
-                File.Delete(logfile);
+                    string args = $"/Source:{url} /Dest:{backupfolder} /SourceKey:{key} /V:{logfile}" + subdirs;
+                    int result = RunCommand(azcopybinary, args);
+                    watch.Stop();
+                    Statistics.ExportAzureStorageTime += watch.Elapsed;
+                    long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
 
-                if (result == 0 && Directory.Exists(backupfolder) && Directory.GetFiles(backupfolder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length) > 0)
-                {
-                    long size = Directory.GetFiles(backupfolder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
-                    long sizemb = size / 1024 / 1024;
-                    Statistics.UncompressedSize += size;
-                    logger
-                        .ForContext("ElapsedMS", elapsedms)
-                        .ForContext("Backupfolder", backupfolder)
-                        .ForContext("Size", size)
-                        .ForContext("SizeMB", sizemb)
-                        .Information("Export success");
-                    return;
-                }
-                else
-                {
-                    logger
-                        .ForContext("Binary", azcopybinary)
-                        .ForContext("Commandargs", args)
-                        .ForContext("Result", result)
-                        .ForContext("ElapsedMS", elapsedms)
-                        .ForContext("Backupfolder", backupfolder)
-                        .Warning("Export fail");
+                    if (new FileInfo(logfile).Length > 0)
+                    {
+                        Log.Information("Reading logfile: {Logfile}", logfile);
+                        string[] rows = File.ReadAllLines(logfile)
+                            .Where(l => !l.Contains("][VERBOSE] Downloaded entities: ") && !l.Contains("][VERBOSE] Start transfer: ") && !l.Contains("][VERBOSE] Finished transfer: "))
+                            .ToArray();
+                        Log.ForContext("LogfileContent", TruncateLogFileContent(rows)).Information("azcopy results");
+                    }
+
+                    Log.Information("Deleting logfile: {Logfile}", logfile);
+                    File.Delete(logfile);
+
+                    if (result == 0 && Directory.Exists(backupfolder) && Directory.GetFiles(backupfolder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length) > 0)
+                    {
+                        long size = Directory.GetFiles(backupfolder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
+                        long sizemb = size / 1024 / 1024;
+                        Statistics.UncompressedSize += size;
+                        Log
+                            .ForContext("ElapsedMS", elapsedms)
+                            .ForContext("Backupfolder", backupfolder)
+                            .ForContext("Size", size)
+                            .ForContext("SizeMB", sizemb)
+                            .Information("Export success");
+                        return;
+                    }
+                    else
+                    {
+                        Log
+                            .ForContext("Binary", azcopybinary)
+                            .ForContext("Commandargs", args)
+                            .ForContext("Result", result)
+                            .ForContext("ElapsedMS", elapsedms)
+                            .ForContext("Backupfolder", backupfolder)
+                            .Warning("Export fail");
+                    }
                 }
             }
 
             if (Directory.Exists(backupfolder) && Directory.GetFiles(backupfolder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length) == 0)
             {
-                logger.Information("Deleting empty folder: {Backupfolder}", backupfolder);
+                Log.Information("Deleting empty folder: {Backupfolder}", backupfolder);
                 RobustDelete(backupfolder);
             }
 
-            logger.Warning("Couldn't export database to folder: {Backupfolder}", backupfolder);
+            Log.Warning("Couldn't export database to folder: {Backupfolder}", backupfolder);
+            Log.Warning("Couldn't export database to folder: {Backupfolder}", backupfolder);
         }
 
-        static void EncryptBackup(ILogger logger, string jobname, string jobtype, string backuppath, string zipfile, string zippassword)
+        static void EncryptBackup(string jobname, string jobtype, string backuppath, string zipfile, string zippassword)
         {
             string sevenzipbinary = Tools.sevenzipbinary;
 
             if ((jobtype == "sqlserver" || jobtype == "cosmosdb") && !File.Exists(backuppath))
             {
-                logger.Warning("Backup file not found, ignoring: {Backuppath}", backuppath);
+                Log.Warning("Backup file not found, ignoring: {Backuppath}", backuppath);
                 return;
             }
             if (jobtype == "azurestorage" && !Directory.Exists(backuppath))
             {
-                logger.Warning("Backup folder not found, ignoring: {Backuppath}", backuppath);
+                Log.Warning("Backup folder not found, ignoring: {Backuppath}", backuppath);
                 return;
             }
 
@@ -331,7 +340,7 @@ namespace multibackup
                 long size = new FileInfo(zipfile).Length;
                 long sizemb = size / 1024 / 1024;
                 Statistics.CompressedSize += size;
-                logger
+                Log
                     .ForContext("ElapsedMS", elapsedms)
                     .ForContext("Zipfile", zipfile)
                     .ForContext("Size", size)
@@ -340,7 +349,7 @@ namespace multibackup
             }
             else
             {
-                logger
+                Log
                     .ForContext("Binary", sevenzipbinary)
                     .ForContext("Commandargs", args)
                     .ForContext("Result", result)
@@ -355,7 +364,7 @@ namespace multibackup
             string rsyncbinary = Tools.rsyncbinary;
 
             string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(rsyncbinary)));
-            string logfile = GetLogFile(appfolder, "SyncBackups");
+            string logfile = GetLogFileName(appfolder, "SyncBackups");
 
             string source = "/cygdrive/" + char.ToLower(zipfolder[0]) + zipfolder.Substring(2).Replace("\\", "/");
             string target = $"{targetAccount}@{targetServer}:.";
@@ -363,65 +372,74 @@ namespace multibackup
             string binfolder = Path.GetDirectoryName(rsyncbinary);
             string synccert = Path.Combine(Path.GetDirectoryName(binfolder), "synccert", "rsync_id_rsa.txt");
 
-            string oldfolder = Directory.GetCurrentDirectory();
-            Directory.SetCurrentDirectory(binfolder);
-
-            for (int tries = 0; tries < 5; tries++)
+            string oldfolder = null;
+            try
             {
-                string[] files = Directory.GetFiles(zipfolder);
+                oldfolder = Directory.GetCurrentDirectory();
+                Directory.SetCurrentDirectory(binfolder);
 
-                Log
-                    .ForContext("Tries", tries + 1)
-                    .ForContext("Files", files.Length)
-                    .Information("Syncing backup files: {Source} -> {Target}", source, target);
-
-                Stopwatch watch = Stopwatch.StartNew();
-
-                string args = $"--checksum --remove-source-files -a -l -e './ssh -o StrictHostKeyChecking=no -i {synccert}' {source} {target} --log-file {logfile}";
-
-                int result = RunCommand(Path.GetFileName(rsyncbinary), args);
-                watch.Stop();
-                Statistics.SyncTime += watch.Elapsed;
-                long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
-
-                if (new FileInfo(logfile).Length > 0)
+                for (int tries = 1; tries <= 5; tries++)
                 {
-                    Log.Information("Reading logfile: {Logfile}", logfile);
-                    string[] rows = File.ReadAllLines(logfile).Where(l => !l.Contains(".d..t...... ") && !l.Contains("<f..t...... ")).ToArray();
-                    Log
-                        .ForContext("Logfile", rows)
-                        .Information("Sync results");
+                    using (new ContextLogger(new Dictionary<string, object>() { ["Tries"] = tries }))
+                    {
+                        string[] files = Directory.GetFiles(zipfolder);
+
+                        Log
+                            .ForContext("FileCount", files.Length)
+                            .Information("Syncing backup files: {Source} -> {Target}", source, target);
+
+                        Stopwatch watch = Stopwatch.StartNew();
+
+                        string args = $"--checksum --remove-source-files -a -l -e './ssh -o StrictHostKeyChecking=no -i {synccert}' {source} {target} --log-file {logfile}";
+
+                        int result = RunCommand(Path.GetFileName(rsyncbinary), args);
+                        watch.Stop();
+                        Statistics.SyncTime += watch.Elapsed;
+                        long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
+
+                        if (new FileInfo(logfile).Length > 0)
+                        {
+                            Log.Information("Reading logfile: {Logfile}", logfile);
+                            string[] rows = File.ReadAllLines(logfile).Where(l => !l.Contains(".d..t...... ") && !l.Contains("<f..t...... ")).ToArray();
+                            Log.ForContext("LogfileContent", TruncateLogFileContent(rows)).Information("rsync results");
+                        }
+
+                        Log.Information("Deleting logfile: {Logfile}", logfile);
+                        File.Delete(logfile);
+
+                        if (result == 0)
+                        {
+                            Log
+                                .ForContext("ElapsedMS", elapsedms)
+                                .ForContext("Zipfolder", zipfolder)
+                                .Information("Sync success");
+                            return;
+                        }
+                        else
+                        {
+                            Log
+                                .ForContext("Binary", rsyncbinary)
+                                .ForContext("Commandargs", args)
+                                .ForContext("Result", result)
+                                .ForContext("ElapsedMS", elapsedms)
+                                .ForContext("Zipfolder", zipfolder)
+                                .Warning("Sync fail");
+                        }
+                    }
                 }
-
-                Log.Information("Deleting logfile: {Logfile}", logfile);
-                File.Delete(logfile);
-
-                if (result == 0)
+            }
+            finally
+            {
+                if (oldfolder != null)
                 {
-                    Log
-                        .ForContext("ElapsedMS", elapsedms)
-                        .ForContext("Zipfolder", zipfolder)
-                        .Information("Sync success");
                     Directory.SetCurrentDirectory(oldfolder);
-                    return;
-                }
-                else
-                {
-                    Log
-                        .ForContext("Binary", rsyncbinary)
-                        .ForContext("Commandargs", args)
-                        .ForContext("Result", result)
-                        .ForContext("ElapsedMS", elapsedms)
-                        .ForContext("Zipfolder", zipfolder)
-                        .Warning("Sync fail");
                 }
             }
 
             Statistics.SuccessCount = 0;
-            Directory.SetCurrentDirectory(oldfolder);
         }
 
-        static string GetLogFile(string appfolder, string jobname)
+        static string GetLogFileName(string appfolder, string jobname)
         {
             string logfolder = Path.Combine(appfolder, "logs");
             if (!Directory.Exists(logfolder))
@@ -436,6 +454,17 @@ namespace multibackup
                 File.Delete(logfile);
             }
             return logfile;
+        }
+
+        static string TruncateLogFileContent(string[] rows)
+        {
+            string logfilecontent = string.Join(Environment.NewLine, rows);
+            if (logfilecontent.Length > 10000)
+            {
+                logfilecontent = logfilecontent.Substring(0, 10000) + "...";
+            }
+
+            return logfilecontent;
         }
 
         static void RobustDelete(string folder)

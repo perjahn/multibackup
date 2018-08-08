@@ -18,7 +18,7 @@ namespace multibackup
         public string Key { get; set; }
         public string ZipPassword { get; set; }
 
-        public Dictionary<string, string> Tags { get; set; }
+        public Dictionary<string, object> Tags { get; set; }
 
 
         public static BackupJob[] LoadBackupJobs(string[] jsonfiles)
@@ -82,7 +82,7 @@ namespace multibackup
                     string url = null;
                     string key = null;
                     string zippassword = backupjob.zippassword.Value;
-                    Dictionary<string, string> tags = new Dictionary<string, string>();
+                    var tags = new Dictionary<string, object>();
                     foreach (var filetag in filetags)
                     {
                         tags.Add(filetag.Key, filetag.Value);
@@ -213,14 +213,10 @@ namespace multibackup
                 string type = backupjob.Type ?? "sqlserver";
                 typecounts[type]++;
 
-                Dictionary<string, string> tags = backupjob.Tags;
-                var logger = Log.Logger;
-                foreach (var key in tags.Keys)
+                using (new ContextLogger(backupjob.Tags))
                 {
-                    logger = logger.ForContext(key, tags[key]);
+                    Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}", backupjob.Name, type);
                 }
-
-                logger.Information("Jobname: {Jobname}, Jobtype: {Jobtype}", backupjob.Name, type);
             }
 
             Log

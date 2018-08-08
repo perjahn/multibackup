@@ -51,11 +51,11 @@ namespace multibackup
             }
 
 
-            Log.Information("Using sqlserver export tool: {Binary}", sqlpackagebinary);
-            Log.Information("Using cosmosdb export tool: {Binary}", dtbinary);
-            Log.Information("Using azurestorage export tool: {Binary}", azcopybinary);
-            Log.Information("Using zip tool: {Binary}", sevenzipbinary);
-            Log.Information("Using rsync tool: {Binary}", rsyncbinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "sqlserver", sqlpackagebinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "cosmosdb", dtbinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "azurestorage", azcopybinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "zip", sevenzipbinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "rsync", rsyncbinary);
         }
     }
 }
