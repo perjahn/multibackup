@@ -203,19 +203,15 @@ namespace multibackup
         {
             Log.Information("Backuping...");
             var typecounts = new Dictionary<string, int>();
+            typecounts["sqlserver"] = 0;
+            typecounts["cosmosdb"] = 0;
+            typecounts["azurestorage"] = 0;
             for (int i = 0; i < backupjobs.Length; i++)
             {
                 BackupJob backupjob = backupjobs[i];
 
                 string type = backupjob.Type ?? "sqlserver";
-                if (typecounts.ContainsKey(type))
-                {
-                    typecounts[type]++;
-                }
-                else
-                {
-                    typecounts[type] = 1;
-                }
+                typecounts[type]++;
 
                 Dictionary<string, string> tags = backupjob.Tags;
                 var logger = Log.Logger;
