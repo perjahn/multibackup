@@ -150,7 +150,7 @@ namespace multibackup
                     bool founddup = false;
                     for (int j = 0; j < i; j++)
                     {
-                        if (json.backupjobs[j].name.Value == backupjob.name.Value && json.backupjobs[j].type.Value == backupjob.type.Value)
+                        if (json.backupjobs[j].name.Value == backupjob.name.Value)
                         {
                             Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) duplicate name of {Duplicate}, ignoring backup job.",
                                 backupjob.index.Value, type, name, json.backupjobs[j].index.Value);
