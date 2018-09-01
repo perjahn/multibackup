@@ -23,7 +23,7 @@ namespace multibackup
 
             foreach (var backupjob in backupjobs)
             {
-                string jobtype = backupjob.Type ?? "sqlserver";
+                BackupJob.BackupType jobtype = backupjob.Type;
                 string jobname = backupjob.Name;
                 string backuppath;
 
@@ -31,7 +31,7 @@ namespace multibackup
                 {
                     Log.Logger = Log.ForContext("Jobname", jobname).ForContext("Jobtype", jobtype);
 
-                    if (jobtype == "sqlserver")
+                    if (jobtype == BackupJob.BackupType.SqlServer)
                     {
                         string connstr = backupjob.ConnectionString;
                         backuppath = Path.Combine(backupfolder, $"sqlserver_{backupjob.Name}_{date}.bacpac");
@@ -40,7 +40,7 @@ namespace multibackup
                             ExportSqlServer(jobname, connstr, backuppath);
                         }
                     }
-                    else if (jobtype == "cosmosdb")
+                    else if (jobtype == BackupJob.BackupType.CosmosDB)
                     {
                         string connstr = backupjob.ConnectionString;
                         backuppath = Path.Combine(backupfolder, $"cosmosdb_{backupjob.Name}_{date}.json");
@@ -50,7 +50,7 @@ namespace multibackup
                             ExportCosmosDB(jobname, connstr, collection, backuppath);
                         }
                     }
-                    else if (jobtype == "azurestorage")
+                    else if (jobtype == BackupJob.BackupType.AzureStorage)
                     {
                         string url = backupjob.Url;
                         string key = backupjob.Key;
@@ -138,7 +138,7 @@ namespace multibackup
                     {
                         Log
                             .ForContext("Binary", sqlpackagebinary)
-                            .ForContext("Commandargs", args)
+                            .ForContext("Commandargs", LogHelper.Mask(args, connstr))
                             .ForContext("Result", result)
                             .ForContext("ElapsedMS", elapsedms)
                             .ForContext("Backupfile", backupfile)
@@ -182,7 +182,7 @@ namespace multibackup
                     {
                         Log.Information("Reading logfile: {Logfile}", logfile);
                         string[] rows = File.ReadAllLines(logfile);
-                        Log.ForContext("LogfileContent", TruncateLogFileContent(rows)).Information("dt results");
+                        Log.ForContext("LogfileContent", LogHelper.TruncateLogFileContent(rows)).Information("dt results");
                     }
 
                     Log.Information("Deleting logfile: {Logfile}", logfile);
@@ -205,7 +205,7 @@ namespace multibackup
                     {
                         Log
                             .ForContext("Binary", dtbinary)
-                            .ForContext("Commandargs", args)
+                            .ForContext("Commandargs", LogHelper.Mask(args, new[] { connstr, collection }))
                             .ForContext("Result", result)
                             .ForContext("ElapsedMS", elapsedms)
                             .ForContext("Backupfile", backupfile)
@@ -267,7 +267,7 @@ namespace multibackup
                         string[] rows = File.ReadAllLines(logfile)
                             .Where(l => !l.Contains("][VERBOSE] Downloaded entities: ") && !l.Contains("][VERBOSE] Start transfer: ") && !l.Contains("][VERBOSE] Finished transfer: "))
                             .ToArray();
-                        Log.ForContext("LogfileContent", TruncateLogFileContent(rows)).Information("azcopy results");
+                        Log.ForContext("LogfileContent", LogHelper.TruncateLogFileContent(rows)).Information("azcopy results");
                     }
 
                     Log.Information("Deleting logfile: {Logfile}", logfile);
@@ -290,7 +290,7 @@ namespace multibackup
                     {
                         Log
                             .ForContext("Binary", azcopybinary)
-                            .ForContext("Commandargs", args)
+                            .ForContext("Commandargs", LogHelper.Mask(args, new[] { url, key }))
                             .ForContext("Result", result)
                             .ForContext("ElapsedMS", elapsedms)
                             .ForContext("Backupfolder", backupfolder)
@@ -309,16 +309,16 @@ namespace multibackup
             Log.Warning("Couldn't export database to folder: {Backupfolder}", backupfolder);
         }
 
-        static void EncryptBackup(string jobname, string jobtype, string backuppath, string zipfile, string zippassword)
+        static void EncryptBackup(string jobname, BackupJob.BackupType jobtype, string backuppath, string zipfile, string zippassword)
         {
             string sevenzipbinary = Tools.sevenzipbinary;
 
-            if ((jobtype == "sqlserver" || jobtype == "cosmosdb") && !File.Exists(backuppath))
+            if ((jobtype == BackupJob.BackupType.SqlServer || jobtype == BackupJob.BackupType.CosmosDB) && !File.Exists(backuppath))
             {
                 Log.Warning("Backup file not found, ignoring: {Backuppath}", backuppath);
                 return;
             }
-            if (jobtype == "azurestorage" && !Directory.Exists(backuppath))
+            if (jobtype == BackupJob.BackupType.AzureStorage && !Directory.Exists(backuppath))
             {
                 Log.Warning("Backup folder not found, ignoring: {Backuppath}", backuppath);
                 return;
@@ -326,7 +326,7 @@ namespace multibackup
 
             Stopwatch watch = Stopwatch.StartNew();
 
-            string compression = jobtype == "sqlserver" ? "-mx0" : "-mx9";
+            string compression = jobtype == BackupJob.BackupType.SqlServer ? "-mx0" : "-mx9";
 
             string args = $"a {compression} {zipfile} {backuppath} -sdel -mhe -p{zippassword}";
 
@@ -351,7 +351,7 @@ namespace multibackup
             {
                 Log
                     .ForContext("Binary", sevenzipbinary)
-                    .ForContext("Commandargs", args)
+                    .ForContext("Commandargs", LogHelper.Mask(args, zippassword))
                     .ForContext("Result", result)
                     .ForContext("ElapsedMS", elapsedms)
                     .ForContext("Zipfile", zipfile)
@@ -401,7 +401,7 @@ namespace multibackup
                         {
                             Log.Information("Reading logfile: {Logfile}", logfile);
                             string[] rows = File.ReadAllLines(logfile).Where(l => !l.Contains(".d..t...... ") && !l.Contains("<f..t...... ")).ToArray();
-                            Log.ForContext("LogfileContent", TruncateLogFileContent(rows)).Information("rsync results");
+                            Log.ForContext("LogfileContent", LogHelper.TruncateLogFileContent(rows)).Information("rsync results");
                         }
 
                         Log.Information("Deleting logfile: {Logfile}", logfile);
@@ -419,7 +419,7 @@ namespace multibackup
                         {
                             Log
                                 .ForContext("Binary", rsyncbinary)
-                                .ForContext("Commandargs", args)
+                                .ForContext("Commandargs", LogHelper.Mask(args, new[] { targetServer, targetAccount }))
                                 .ForContext("Result", result)
                                 .ForContext("ElapsedMS", elapsedms)
                                 .ForContext("Zipfolder", zipfolder)
@@ -454,17 +454,6 @@ namespace multibackup
                 File.Delete(logfile);
             }
             return logfile;
-        }
-
-        static string TruncateLogFileContent(string[] rows)
-        {
-            string logfilecontent = string.Join(Environment.NewLine, rows);
-            if (logfilecontent.Length > 10000)
-            {
-                logfilecontent = logfilecontent.Substring(0, 10000) + "...";
-            }
-
-            return logfilecontent;
         }
 
         static void RobustDelete(string folder)

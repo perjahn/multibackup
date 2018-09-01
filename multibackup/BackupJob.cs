@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Destructurama.Attributed;
+using Newtonsoft.Json.Linq;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -9,7 +10,9 @@ namespace multibackup
 {
     class BackupJob
     {
-        public string Type { get; set; }
+        public enum BackupType { SqlServer, CosmosDB, AzureStorage };
+
+        public BackupType Type { get; set; }
         public string Name { get; set; }
 
         public string ConnectionString { get; set; }
@@ -89,7 +92,7 @@ namespace multibackup
                     }
 
 
-                    if (type == "sqlserver")
+                    if (string.Compare(type, "sqlserver", false) == 0)
                     {
                         if (backupjob.connectionstring == null)
                         {
@@ -100,7 +103,7 @@ namespace multibackup
                         }
                         connectionstring = backupjob.connectionstring.Value;
                     }
-                    else if (type == "cosmosdb")
+                    else if (string.Compare(type, "cosmosdb", false) == 0)
                     {
                         if (backupjob.connectionstring == null)
                         {
@@ -119,7 +122,7 @@ namespace multibackup
                         }
                         collection = backupjob.collection.Value;
                     }
-                    else if (type == "azurestorage")
+                    else if (string.Compare(type, "azurestorage", false) == 0)
                     {
                         if (backupjob.url == null)
                         {
@@ -174,7 +177,7 @@ namespace multibackup
 
                     backupjobs.Add(new BackupJob()
                     {
-                        Type = type,
+                        Type = Enum.Parse<BackupType>(type),
                         Name = name,
                         ConnectionString = connectionstring,
                         Collection = collection,
@@ -202,27 +205,49 @@ namespace multibackup
         public static void LogBackupJobs(BackupJob[] backupjobs)
         {
             Log.Information("Backuping...");
-            var typecounts = new Dictionary<string, int>();
-            typecounts["sqlserver"] = 0;
-            typecounts["cosmosdb"] = 0;
-            typecounts["azurestorage"] = 0;
+            var typecounts = new Dictionary<BackupType, int>
+            {
+                [BackupType.SqlServer] = 0,
+                [BackupType.CosmosDB] = 0,
+                [BackupType.AzureStorage] = 0
+            };
             for (int i = 0; i < backupjobs.Length; i++)
             {
                 BackupJob backupjob = backupjobs[i];
 
-                string type = backupjob.Type ?? "sqlserver";
+                BackupType type = backupjob.Type;
                 typecounts[type]++;
 
                 using (new ContextLogger(backupjob.Tags))
                 {
-                    Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}", backupjob.Name, type);
+                    switch (backupjob.Type)
+                    {
+                        case BackupType.SqlServer:
+                            Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, ConnectionString: {HashedConnectionString}, Zippassword: {HashedZippassword}",
+                                backupjob.Name, type,
+                                LogHelper.GetHashString(backupjob.ConnectionString),
+                                LogHelper.GetHashString(backupjob.ZipPassword));
+                            break;
+                        case BackupType.CosmosDB:
+                            Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, ConnectionString: {HashedConnectionString}, Collection: {HashedCollection}, Zippassword: {HashedZippassword}",
+                                backupjob.Name, type,
+                                LogHelper.GetHashString(backupjob.ConnectionString), LogHelper.GetHashString(backupjob.Collection),
+                                LogHelper.GetHashString(backupjob.ZipPassword));
+                            break;
+                        case BackupType.AzureStorage:
+                            Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, Url: {HashedUrl}, Key: {HashedKey}, Zippassword: {HashedZippassword}",
+                                backupjob.Name, type,
+                                LogHelper.GetHashString(backupjob.Url), LogHelper.GetHashString(backupjob.Key),
+                                LogHelper.GetHashString(backupjob.ZipPassword));
+                            break;
+                    }
                 }
             }
 
             Log
-                .ForContext("SqlServerCount", typecounts["sqlserver"])
-                .ForContext("CosmosDBCount", typecounts["cosmosdb"])
-                .ForContext("AzureStorageCount", typecounts["azurestorage"])
+                .ForContext("SqlServerCount", typecounts[BackupType.SqlServer])
+                .ForContext("CosmosDBCount", typecounts[BackupType.CosmosDB])
+                .ForContext("AzureStorageCount", typecounts[BackupType.AzureStorage])
                 .ForContext("TotalCount", backupjobs.Length)
                 .Information("Backup counts");
         }
