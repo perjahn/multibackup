@@ -115,9 +115,9 @@ namespace multibackup
 
             string exportfolder = Path.Combine(appfolder, "export");
             string zipfolder = Path.Combine(appfolder, "backups");
-            Backup.ExportBackups(backupjobs, exportfolder, date, backupSqlServer, backupCosmosDB, backupAzureStorage, zipfolder);
+            BackupJob.ExportBackups(backupjobs, exportfolder, date, backupSqlServer, backupCosmosDB, backupAzureStorage, zipfolder);
 
-            Backup.SyncBackups(zipfolder, targetServer, targetAccount);
+            BackupJob.SyncBackups(zipfolder, targetServer, targetAccount);
 
             totalwatch.Stop();
             Statistics.TotalTime = totalwatch.Elapsed;

@@ -3,26 +3,22 @@ using Newtonsoft.Json.Linq;
 using Serilog;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace multibackup
 {
     class BackupJob
     {
-        public enum BackupType { SqlServer, CosmosDB, AzureStorage };
-
-        public BackupType Type { get; set; }
         public string Name { get; set; }
-
-        public string ConnectionString { get; set; }
-        public string Collection { get; set; }
-        public string Url { get; set; }
-        public string Key { get; set; }
+        [NotLogged]
         public string ZipPassword { get; set; }
-
         public Dictionary<string, object> Tags { get; set; }
 
+
+        protected virtual void Export(string backuppath) => throw new NotImplementedException();
 
         public static BackupJob[] LoadBackupJobs(string[] jsonfiles)
         {
@@ -175,17 +171,26 @@ namespace multibackup
                         }
                     }
 
-                    backupjobs.Add(new BackupJob()
+                    BackupJob job;
+
+                    if (string.Compare(type, "sqlserver", true) == 0)
                     {
-                        Type = Enum.Parse<BackupType>(type),
-                        Name = name,
-                        ConnectionString = connectionstring,
-                        Collection = collection,
-                        Url = url,
-                        Key = key,
-                        ZipPassword = zippassword,
-                        Tags = tags
-                    });
+                        job = new BackupSqlServer { ConnectionString = connectionstring };
+                    }
+                    else if (string.Compare(type, "cosmosdb", true) == 0)
+                    {
+                        job = new BackupCosmosDB { ConnectionString = connectionstring, Collection = collection };
+                    }
+                    else
+                    {
+                        job = new BackupAzureStorage { Url = url, Key = key };
+                    }
+
+                    job.Name = name;
+                    job.ZipPassword = zippassword;
+                    job.Tags = tags;
+
+                    backupjobs.Add(job);
 
                     i++;
                 }
@@ -205,51 +210,342 @@ namespace multibackup
         public static void LogBackupJobs(BackupJob[] backupjobs)
         {
             Log.Information("Backuping...");
-            var typecounts = new Dictionary<BackupType, int>
+            var typecounts = new Dictionary<string, int>
             {
-                [BackupType.SqlServer] = 0,
-                [BackupType.CosmosDB] = 0,
-                [BackupType.AzureStorage] = 0
+                ["SqlServer"] = 0,
+                ["CosmosDB"] = 0,
+                ["AzureStorage"] = 0
             };
             for (int i = 0; i < backupjobs.Length; i++)
             {
                 BackupJob backupjob = backupjobs[i];
 
-                BackupType type = backupjob.Type;
+                string type = backupjob is BackupSqlServer ? "SqlServer" : backupjob is BackupCosmosDB ? "CosmosDB" : "AzureStorage";
                 typecounts[type]++;
 
                 using (new ContextLogger(backupjob.Tags))
                 {
-                    switch (backupjob.Type)
+                    if (backupjob is BackupSqlServer)
                     {
-                        case BackupType.SqlServer:
-                            Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, ConnectionString: {HashedConnectionString}, Zippassword: {HashedZippassword}",
-                                backupjob.Name, type,
-                                LogHelper.GetHashString(backupjob.ConnectionString),
-                                LogHelper.GetHashString(backupjob.ZipPassword));
-                            break;
-                        case BackupType.CosmosDB:
-                            Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, ConnectionString: {HashedConnectionString}, Collection: {HashedCollection}, Zippassword: {HashedZippassword}",
-                                backupjob.Name, type,
-                                LogHelper.GetHashString(backupjob.ConnectionString), LogHelper.GetHashString(backupjob.Collection),
-                                LogHelper.GetHashString(backupjob.ZipPassword));
-                            break;
-                        case BackupType.AzureStorage:
-                            Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, Url: {HashedUrl}, Key: {HashedKey}, Zippassword: {HashedZippassword}",
-                                backupjob.Name, type,
-                                LogHelper.GetHashString(backupjob.Url), LogHelper.GetHashString(backupjob.Key),
-                                LogHelper.GetHashString(backupjob.ZipPassword));
-                            break;
+                        Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, ConnectionString: {HashedConnectionString}, Zippassword: {HashedZippassword}",
+                            backupjob.Name, type,
+                            LogHelper.GetHashString((backupjob as BackupSqlServer).ConnectionString),
+                            LogHelper.GetHashString(backupjob.ZipPassword));
+                    }
+                    else if (backupjob is BackupCosmosDB)
+                    {
+                        Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, ConnectionString: {HashedConnectionString}, Collection: {HashedCollection}, Zippassword: {HashedZippassword}",
+                            backupjob.Name, type,
+                            LogHelper.GetHashString((backupjob as BackupCosmosDB).ConnectionString), LogHelper.GetHashString((backupjob as BackupCosmosDB).Collection),
+                            LogHelper.GetHashString(backupjob.ZipPassword));
+                    }
+                    else if (backupjob is BackupAzureStorage)
+                    {
+                        Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, Url: {HashedUrl}, Key: {HashedKey}, Zippassword: {HashedZippassword}",
+                            backupjob.Name, type,
+                            LogHelper.GetHashString((backupjob as BackupAzureStorage).Url), LogHelper.GetHashString((backupjob as BackupAzureStorage).Key),
+                            LogHelper.GetHashString(backupjob.ZipPassword));
                     }
                 }
             }
 
             Log
-                .ForContext("SqlServerCount", typecounts[BackupType.SqlServer])
-                .ForContext("CosmosDBCount", typecounts[BackupType.CosmosDB])
-                .ForContext("AzureStorageCount", typecounts[BackupType.AzureStorage])
+                .ForContext("SqlServerCount", typecounts["SqlServer"])
+                .ForContext("CosmosDBCount", typecounts["CosmosDB"])
+                .ForContext("AzureStorageCount", typecounts["AzureStorage"])
                 .ForContext("TotalCount", backupjobs.Length)
                 .Information("Backup counts");
+        }
+
+        public static void ExportBackups(BackupJob[] backupjobs, string backupfolder, string date, bool backupSqlServer, bool backupCosmosDB, bool backupAzureStorage, string zipfolder)
+        {
+            Stopwatch watch = Stopwatch.StartNew();
+
+            Log.Information("Creating folder: {Backupfolder}", backupfolder);
+            Directory.CreateDirectory(backupfolder);
+
+            Log.Information("Creating folder: {Zipfolder}", zipfolder);
+            Directory.CreateDirectory(zipfolder);
+
+            foreach (var backupjob in backupjobs)
+            {
+                string backuppath;
+
+                using (new ContextLogger(backupjob.Tags))
+                {
+                    Log.Logger = Log
+                        .ForContext("Jobname", backupjob.Name)
+                        .ForContext("Jobtype", backupjob is BackupSqlServer ? "SqlServer" : backupjob is BackupCosmosDB ? "CosmosDB" : "AzureStorage");
+
+                    if (backupjob is BackupSqlServer)
+                    {
+                        backuppath = Path.Combine(backupfolder, $"sqlserver_{backupjob.Name}_{date}.bacpac");
+                        if (backupSqlServer)
+                        {
+                            backupjob.Export(backuppath);
+                        }
+                    }
+                    else if (backupjob is BackupCosmosDB)
+                    {
+                        backuppath = Path.Combine(backupfolder, $"cosmosdb_{backupjob.Name}_{date}.json");
+                        if (backupCosmosDB)
+                        {
+                            backupjob.Export(backuppath);
+                        }
+                    }
+                    else
+                    {
+                        backuppath = Path.Combine(backupfolder, $"azurestorage_{backupjob.Name}_{date}");
+                        if (backupAzureStorage)
+                        {
+                            backupjob.Export(backuppath);
+                        }
+                    }
+
+
+                    string zipfile = Path.ChangeExtension(Path.GetFileName(backuppath), ".7z");
+
+                    string oldfolder = null;
+                    try
+                    {
+                        oldfolder = Directory.GetCurrentDirectory();
+                        Directory.SetCurrentDirectory(zipfolder);
+
+                        backupjob.EncryptBackup(backuppath, zipfile);
+
+                        if (File.Exists(zipfile))
+                        {
+                            Statistics.SuccessCount++;
+                        }
+                        else
+                        {
+                            Log.Warning("Backupjob failed");
+                        }
+                    }
+                    finally
+                    {
+                        if (oldfolder != null)
+                        {
+                            Directory.SetCurrentDirectory(oldfolder);
+                        }
+                    }
+                }
+            }
+
+            Log
+                .ForContext("ElapsedMS", (long)watch.Elapsed.TotalMilliseconds)
+                .Information("Done exporting");
+        }
+
+        public static void SyncBackups(string zipfolder, string targetServer, string targetAccount)
+        {
+            string rsyncbinary = Tools.RsyncBinary;
+
+            string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(rsyncbinary)));
+            string logfile = GetLogFileName(appfolder, "SyncBackups");
+
+            string source = "/cygdrive/" + char.ToLower(zipfolder[0]) + zipfolder.Substring(2).Replace("\\", "/");
+            string target = $"{targetAccount}@{targetServer}:.";
+
+            string binfolder = Path.GetDirectoryName(rsyncbinary);
+            string synccert = Path.Combine(Path.GetDirectoryName(binfolder), "synccert", "rsync_id_rsa.txt");
+
+            string oldfolder = null;
+            try
+            {
+                oldfolder = Directory.GetCurrentDirectory();
+                Directory.SetCurrentDirectory(binfolder);
+
+                for (int tries = 1; tries <= 5; tries++)
+                {
+                    using (new ContextLogger(new Dictionary<string, object>() { ["Tries"] = tries }))
+                    {
+                        string[] files = Directory.GetFiles(zipfolder);
+
+                        Log
+                            .ForContext("FileCount", files.Length)
+                            .Information("Syncing backup files: {Source} -> {Target}", source, target);
+
+                        Stopwatch watch = Stopwatch.StartNew();
+
+                        string args = $"--checksum --remove-source-files -a -l -e './ssh -o StrictHostKeyChecking=no -i {synccert}' {source} {target} --log-file {logfile}";
+
+                        int result = RunCommand(Path.GetFileName(rsyncbinary), args);
+                        watch.Stop();
+                        Statistics.SyncTime += watch.Elapsed;
+                        long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
+
+                        if (new FileInfo(logfile).Length > 0)
+                        {
+                            Log.Information("Reading logfile: {Logfile}", logfile);
+                            string[] rows = File.ReadAllLines(logfile).Where(l => !l.Contains(".d..t...... ") && !l.Contains("<f..t...... ")).ToArray();
+                            Log.ForContext("LogfileContent", LogHelper.TruncateLogFileContent(rows)).Information("rsync results");
+                        }
+
+                        Log.Information("Deleting logfile: {Logfile}", logfile);
+                        File.Delete(logfile);
+
+                        if (result == 0)
+                        {
+                            Log
+                                .ForContext("ElapsedMS", elapsedms)
+                                .ForContext("Zipfolder", zipfolder)
+                                .Information("Sync success");
+                            return;
+                        }
+                        else
+                        {
+                            Log
+                                .ForContext("Binary", rsyncbinary)
+                                .ForContext("Commandargs", LogHelper.Mask(args, new[] { targetServer, targetAccount }))
+                                .ForContext("Result", result)
+                                .ForContext("ElapsedMS", elapsedms)
+                                .ForContext("Zipfolder", zipfolder)
+                                .Warning("Sync fail");
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                if (oldfolder != null)
+                {
+                    Directory.SetCurrentDirectory(oldfolder);
+                }
+            }
+
+            Statistics.SuccessCount = 0;
+        }
+
+        void EncryptBackup(string backuppath, string zipfile)
+        {
+            string sevenzipbinary = Tools.SevenzipBinary;
+
+            if ((this is BackupSqlServer || this is BackupCosmosDB) && !File.Exists(backuppath))
+            {
+                Log.Warning("Backup file not found, ignoring: {Backuppath}", backuppath);
+                return;
+            }
+            if (this is BackupAzureStorage && !Directory.Exists(backuppath))
+            {
+                Log.Warning("Backup folder not found, ignoring: {Backuppath}", backuppath);
+                return;
+            }
+
+            Stopwatch watch = Stopwatch.StartNew();
+
+            string compression = this is BackupSqlServer ? "-mx0" : "-mx9";
+
+            string args = $"a {compression} {zipfile} {backuppath} -sdel -mhe -p{ZipPassword}";
+
+            int result = RunCommand(sevenzipbinary, args);
+            watch.Stop();
+            Statistics.ZipTime += watch.Elapsed;
+            long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
+
+            if (result == 0 && File.Exists(zipfile) && new FileInfo(zipfile).Length > 0)
+            {
+                long size = new FileInfo(zipfile).Length;
+                long sizemb = size / 1024 / 1024;
+                Statistics.CompressedSize += size;
+                Log
+                    .ForContext("ElapsedMS", elapsedms)
+                    .ForContext("Zipfile", zipfile)
+                    .ForContext("Size", size)
+                    .ForContext("SizeMB", sizemb)
+                    .Information("Zip success");
+            }
+            else
+            {
+                Log
+                    .ForContext("Binary", sevenzipbinary)
+                    .ForContext("Commandargs", LogHelper.Mask(args, ZipPassword))
+                    .ForContext("Result", result)
+                    .ForContext("ElapsedMS", elapsedms)
+                    .ForContext("Zipfile", zipfile)
+                    .Warning("Zip fail");
+            }
+        }
+
+        protected static string GetLogFileName(string appfolder, string jobname)
+        {
+            string logfolder = Path.Combine(appfolder, "logs");
+            if (!Directory.Exists(logfolder))
+            {
+                Directory.CreateDirectory(logfolder);
+            }
+
+            string logfile = Path.Combine(logfolder, $"{jobname}_{DateTime.UtcNow:yyyyMMdd}.log");
+            if (File.Exists(logfile))
+            {
+                Log.Information("Deleting old logfile: {Logfile}", logfile);
+                File.Delete(logfile);
+            }
+            return logfile;
+        }
+
+        protected void RobustDelete(string folder)
+        {
+            if (Directory.Exists(folder))
+            {
+                string[] files = Directory.GetFiles(folder, "*", SearchOption.AllDirectories);
+                foreach (string filename in files)
+                {
+                    try
+                    {
+                        File.SetAttributes(filename, File.GetAttributes(filename) & ~FileAttributes.ReadOnly);
+                    }
+                    catch (Exception ex) when (ex is UnauthorizedAccessException || ex is IOException)
+                    {
+                        // Will be dealt with when deleting the folder.
+                    }
+                }
+
+                for (int tries = 1; tries <= 10; tries++)
+                {
+                    Log
+                        .ForContext("Tries", tries)
+                        .Information("Deleting folder: {Folder}", folder);
+                    try
+                    {
+                        Directory.Delete(folder, true);
+                        return;
+                    }
+                    catch (Exception ex) when (tries < 10 && (ex is UnauthorizedAccessException || ex is IOException))
+                    {
+                        Thread.Sleep(2000);
+                    }
+                }
+            }
+        }
+
+        protected static int RunCommand(string binary, string args)
+        {
+            Process process = new Process
+            {
+                StartInfo = new ProcessStartInfo(binary, args)
+                {
+                    UseShellExecute = false
+                }
+            };
+
+            Log.Debug("Running: >>{Binary}<< >>{Commandargs}<<", binary, args);
+
+            process.Start();
+            process.WaitForExit();
+
+            Log.Debug("Ran: >>{Binary}<< >>{Commandargs}<< ExitCode: {ExitCode}", binary, args, process.ExitCode);
+
+            return process.ExitCode;
+        }
+
+        protected void KillProcesses(string processName)
+        {
+            foreach (Process process in Process.GetProcessesByName(processName))
+            {
+                Log.Information("Killing: {ProcessName}", process.MainModule);
+                process.Kill();
+            }
         }
     }
 }

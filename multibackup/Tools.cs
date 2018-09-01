@@ -10,52 +10,52 @@ namespace multibackup
 {
     class Tools
     {
-        public static string sqlpackagebinary { get; set; }
-        public static string dtbinary { get; set; }
-        public static string azcopybinary { get; set; }
-        public static string sevenzipbinary { get; set; }
-        public static string rsyncbinary { get; set; }
+        public static string SqlpackageBinary { get; set; }
+        public static string DtBinary { get; set; }
+        public static string AzcopyBinary { get; set; }
+        public static string SevenzipBinary { get; set; }
+        public static string RsyncBinary { get; set; }
 
         public static void Prepare(string appfolder)
         {
-            sqlpackagebinary = Path.Combine(appfolder, "sqlpackage", "SqlPackage.exe");
-            dtbinary = Path.Combine(appfolder, "dt", "dt.exe");
-            azcopybinary = Path.Combine(appfolder, "azcopy", "AzCopy.exe");
-            sevenzipbinary = Path.Combine(appfolder, "sevenzip", "7z.exe");
-            rsyncbinary = Path.Combine(appfolder, "rsync", "bin", "rsync.exe");
+            SqlpackageBinary = Path.Combine(appfolder, "sqlpackage", "SqlPackage.exe");
+            DtBinary = Path.Combine(appfolder, "dt", "dt.exe");
+            AzcopyBinary = Path.Combine(appfolder, "azcopy", "AzCopy.exe");
+            SevenzipBinary = Path.Combine(appfolder, "sevenzip", "7z.exe");
+            RsyncBinary = Path.Combine(appfolder, "rsync", "bin", "rsync.exe");
 
-            if (!File.Exists(sqlpackagebinary))
+            if (!File.Exists(SqlpackageBinary))
             {
-                Log.Error("Couldn't find {Binary}", sqlpackagebinary);
-                throw new Exception($"Couldn't find '{sqlpackagebinary}'");
+                Log.Error("Couldn't find {Binary}", SqlpackageBinary);
+                throw new Exception($"Couldn't find '{SqlpackageBinary}'");
             }
-            if (!File.Exists(dtbinary))
+            if (!File.Exists(DtBinary))
             {
-                Log.Error("Couldn't find {Binary}", dtbinary);
-                throw new Exception($"Couldn't find '{dtbinary}'");
+                Log.Error("Couldn't find {Binary}", DtBinary);
+                throw new Exception($"Couldn't find '{DtBinary}'");
             }
-            if (!File.Exists(azcopybinary))
+            if (!File.Exists(AzcopyBinary))
             {
-                Log.Error("Couldn't find {Binary}", azcopybinary);
-                throw new Exception($"Couldn't find '{azcopybinary}'");
+                Log.Error("Couldn't find {Binary}", AzcopyBinary);
+                throw new Exception($"Couldn't find '{AzcopyBinary}'");
             }
-            if (!File.Exists(sevenzipbinary))
+            if (!File.Exists(SevenzipBinary))
             {
-                Log.Error("Couldn't find {Binary}", sevenzipbinary);
-                throw new Exception($"Couldn't find '{sevenzipbinary}'");
+                Log.Error("Couldn't find {Binary}", SevenzipBinary);
+                throw new Exception($"Couldn't find '{SevenzipBinary}'");
             }
-            if (!File.Exists(rsyncbinary))
+            if (!File.Exists(RsyncBinary))
             {
-                Log.Error("Couldn't find {Binary}", rsyncbinary);
-                throw new Exception($"Couldn't find '{rsyncbinary}'");
+                Log.Error("Couldn't find {Binary}", RsyncBinary);
+                throw new Exception($"Couldn't find '{RsyncBinary}'");
             }
 
 
-            Log.Information("Using {Toolname} tool: {Binary}", "sqlserver", sqlpackagebinary);
-            Log.Information("Using {Toolname} tool: {Binary}", "cosmosdb", dtbinary);
-            Log.Information("Using {Toolname} tool: {Binary}", "azurestorage", azcopybinary);
-            Log.Information("Using {Toolname} tool: {Binary}", "zip", sevenzipbinary);
-            Log.Information("Using {Toolname} tool: {Binary}", "rsync", rsyncbinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "sqlserver", SqlpackageBinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "cosmosdb", DtBinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "azurestorage", AzcopyBinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "zip", SevenzipBinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "rsync", RsyncBinary);
         }
     }
 }

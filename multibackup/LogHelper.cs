@@ -36,6 +36,14 @@ namespace multibackup
             return result;
         }
 
+        public static string GetHashString(string value)
+        {
+            using (var crypto = new SHA256Managed())
+            {
+                return string.Concat(crypto.ComputeHash(Encoding.UTF8.GetBytes(value)).Select(b => b.ToString("x2")));
+            }
+        }
+
         public static string MaskWithHash(string text, string[] secrets)
         {
             string result = text;
@@ -46,14 +54,6 @@ namespace multibackup
             }
 
             return result;
-        }
-
-        public static string GetHashString(string value)
-        {
-            using (var crypto = new SHA256Managed())
-            {
-                return string.Concat(crypto.ComputeHash(Encoding.UTF8.GetBytes(value)).Select(b => b.ToString("x2")));
-            }
         }
     }
 }
