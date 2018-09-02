@@ -364,7 +364,7 @@ namespace multibackup
 
                         Log
                             .ForContext("FileCount", files.Length)
-                            .Information("Syncing backup files: {Source} -> {Target}", source, target);
+                            .Information("Syncing backup files: {Source} -> {Target}", source, LogHelper.Mask(target, new[] { targetServer, targetAccount }));
 
                         Stopwatch watch = Stopwatch.StartNew();
 
