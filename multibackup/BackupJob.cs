@@ -337,6 +337,56 @@ namespace multibackup
                 .Information("Done exporting");
         }
 
+        void EncryptBackup(string backuppath, string zipfile)
+        {
+            string sevenzipbinary = Tools.SevenzipBinary;
+
+            if ((this is BackupSqlServer || this is BackupCosmosDB) && !File.Exists(backuppath))
+            {
+                Log.Warning("Backup file not found, ignoring: {Backuppath}", backuppath);
+                return;
+            }
+            if (this is BackupAzureStorage && !Directory.Exists(backuppath))
+            {
+                Log.Warning("Backup folder not found, ignoring: {Backuppath}", backuppath);
+                return;
+            }
+
+            Stopwatch watch = Stopwatch.StartNew();
+
+            string compression = this is BackupSqlServer ? "-mx0" : "-mx9";
+
+            string args = $"a {compression} {zipfile} {backuppath} -sdel -mhe -p{ZipPassword}";
+
+            int result = RunCommand(sevenzipbinary, args);
+            watch.Stop();
+            Statistics.ZipTime += watch.Elapsed;
+            long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
+
+            if (result == 0 && File.Exists(zipfile) && new FileInfo(zipfile).Length > 0)
+            {
+                long size = new FileInfo(zipfile).Length;
+                long sizemb = size / 1024 / 1024;
+                Statistics.CompressedSize += size;
+                Log
+                    .ForContext("ElapsedMS", elapsedms)
+                    .ForContext("Zipfile", zipfile)
+                    .ForContext("Size", size)
+                    .ForContext("SizeMB", sizemb)
+                    .Information("Zip success");
+            }
+            else
+            {
+                Log
+                    .ForContext("Binary", sevenzipbinary)
+                    .ForContext("Commandargs", LogHelper.Mask(args, ZipPassword))
+                    .ForContext("Result", result)
+                    .ForContext("ElapsedMS", elapsedms)
+                    .ForContext("Zipfile", zipfile)
+                    .Warning("Zip fail");
+            }
+        }
+
         public static void SyncBackups(string zipfolder, string targetServer, string targetAccount)
         {
             string rsyncbinary = Tools.RsyncBinary;
@@ -415,56 +465,6 @@ namespace multibackup
             }
 
             Statistics.SuccessCount = 0;
-        }
-
-        void EncryptBackup(string backuppath, string zipfile)
-        {
-            string sevenzipbinary = Tools.SevenzipBinary;
-
-            if ((this is BackupSqlServer || this is BackupCosmosDB) && !File.Exists(backuppath))
-            {
-                Log.Warning("Backup file not found, ignoring: {Backuppath}", backuppath);
-                return;
-            }
-            if (this is BackupAzureStorage && !Directory.Exists(backuppath))
-            {
-                Log.Warning("Backup folder not found, ignoring: {Backuppath}", backuppath);
-                return;
-            }
-
-            Stopwatch watch = Stopwatch.StartNew();
-
-            string compression = this is BackupSqlServer ? "-mx0" : "-mx9";
-
-            string args = $"a {compression} {zipfile} {backuppath} -sdel -mhe -p{ZipPassword}";
-
-            int result = RunCommand(sevenzipbinary, args);
-            watch.Stop();
-            Statistics.ZipTime += watch.Elapsed;
-            long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
-
-            if (result == 0 && File.Exists(zipfile) && new FileInfo(zipfile).Length > 0)
-            {
-                long size = new FileInfo(zipfile).Length;
-                long sizemb = size / 1024 / 1024;
-                Statistics.CompressedSize += size;
-                Log
-                    .ForContext("ElapsedMS", elapsedms)
-                    .ForContext("Zipfile", zipfile)
-                    .ForContext("Size", size)
-                    .ForContext("SizeMB", sizemb)
-                    .Information("Zip success");
-            }
-            else
-            {
-                Log
-                    .ForContext("Binary", sevenzipbinary)
-                    .ForContext("Commandargs", LogHelper.Mask(args, ZipPassword))
-                    .ForContext("Result", result)
-                    .ForContext("ElapsedMS", elapsedms)
-                    .ForContext("Zipfile", zipfile)
-                    .Warning("Zip fail");
-            }
         }
 
         protected static string GetLogFileName(string appfolder, string jobname)
