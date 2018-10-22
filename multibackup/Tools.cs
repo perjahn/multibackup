@@ -18,36 +18,17 @@ namespace multibackup
 
         public static void Prepare(string appfolder)
         {
-            SqlpackageBinary = Path.Combine(appfolder, "sqlpackage", "SqlPackage.exe");
-            DtBinary = Path.Combine(appfolder, "dt", "dt.exe");
-            AzcopyBinary = Path.Combine(appfolder, "azcopy", "AzCopy.exe");
-            SevenzipBinary = Path.Combine(appfolder, "sevenzip", "7z.exe");
-            RsyncBinary = Path.Combine(appfolder, "rsync", "bin", "rsync.exe");
+            var errors = new StringBuilder();
 
-            if (!File.Exists(SqlpackageBinary))
+            SqlpackageBinary = GetToolPath("sqlpackage", Path.Combine(appfolder, "sqlpackage", "SqlPackage.exe"), errors);
+            DtBinary = GetToolPath("dt", Path.Combine(appfolder, "dt", "dt.exe"), errors);
+            AzcopyBinary = GetToolPath("azcopy", Path.Combine(appfolder, "azcopy", "AzCopy.exe"), errors);
+            SevenzipBinary = GetToolPath("p7zip", Path.Combine(appfolder, "sevenzip", "7z.exe"), errors);
+            RsyncBinary = GetToolPath("rsync", Path.Combine(appfolder, "rsync", "bin", "rsync.exe"), errors);
+
+            if (errors.ToString() != string.Empty)
             {
-                Log.Error("Couldn't find {Binary}", SqlpackageBinary);
-                throw new Exception($"Couldn't find '{SqlpackageBinary}'");
-            }
-            if (!File.Exists(DtBinary))
-            {
-                Log.Error("Couldn't find {Binary}", DtBinary);
-                throw new Exception($"Couldn't find '{DtBinary}'");
-            }
-            if (!File.Exists(AzcopyBinary))
-            {
-                Log.Error("Couldn't find {Binary}", AzcopyBinary);
-                throw new Exception($"Couldn't find '{AzcopyBinary}'");
-            }
-            if (!File.Exists(SevenzipBinary))
-            {
-                Log.Error("Couldn't find {Binary}", SevenzipBinary);
-                throw new Exception($"Couldn't find '{SevenzipBinary}'");
-            }
-            if (!File.Exists(RsyncBinary))
-            {
-                Log.Error("Couldn't find {Binary}", RsyncBinary);
-                throw new Exception($"Couldn't find '{RsyncBinary}'");
+                throw new Exception(errors.ToString());
             }
 
 
@@ -56,6 +37,31 @@ namespace multibackup
             Log.Information("Using {Toolname} tool: {Binary}", "azurestorage", AzcopyBinary);
             Log.Information("Using {Toolname} tool: {Binary}", "zip", SevenzipBinary);
             Log.Information("Using {Toolname} tool: {Binary}", "rsync", RsyncBinary);
+        }
+
+        private static string GetToolPath(string searchBinary, string explicitBinary, StringBuilder errors)
+        {
+            foreach (var folder in Environment.GetEnvironmentVariable("path").Split(Path.PathSeparator))
+            {
+                if (!Directory.Exists(folder))
+                {
+                    continue;
+                }
+                string[] files = Directory.GetFiles(folder, searchBinary);
+                if (files.Length > 0)
+                {
+                    return files[0];
+                }
+            }
+
+            if (File.Exists(explicitBinary))
+            {
+                return explicitBinary;
+            }
+
+            Log.Error("Couldn't find {Binary}", explicitBinary);
+            errors.AppendLine($"Couldn't find '{explicitBinary}'");
+            return null;
         }
     }
 }
