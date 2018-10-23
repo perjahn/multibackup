@@ -16,11 +16,19 @@ namespace multibackup
         [NotLogged]
         public string ZipPassword { get; set; }
         public Dictionary<string, object> Tags { get; set; }
+        [NotLogged]
+        public string TargetServer { get; set; }
+        [NotLogged]
+        public string TargetAccount { get; set; }
+        [NotLogged]
+        public string TargetCertfile { get; set; }
+        [NotLogged]
+        public string Zipfile { get; set; }
 
 
         protected virtual void Export(string backuppath) => throw new NotImplementedException();
 
-        public static BackupJob[] LoadBackupJobs(string[] jsonfiles)
+        public static BackupJob[] LoadBackupJobs(string[] jsonfiles, string defaultTargetServer, string defaultTargetAccount, string defaultTargetCertfile)
         {
             List<BackupJob> backupjobs = new List<BackupJob>();
 
@@ -190,6 +198,10 @@ namespace multibackup
                     job.ZipPassword = zippassword;
                     job.Tags = tags;
 
+                    job.TargetServer = backupjob.targetserver ?? defaultTargetServer;
+                    job.TargetAccount = backupjob.targetaccount ?? defaultTargetAccount;
+                    job.TargetCertfile = backupjob.targetcertfile ?? defaultTargetCertfile;
+
                     backupjobs.Add(job);
 
                     i++;
@@ -257,15 +269,12 @@ namespace multibackup
                 .Information("Backup counts");
         }
 
-        public static void ExportBackups(BackupJob[] backupjobs, string backupfolder, string date, bool backupSqlServer, bool backupCosmosDB, bool backupAzureStorage, string zipfolder)
+        public static void ExportBackups(BackupJob[] backupjobs, string exportfolder, string date, bool backupSqlServer, bool backupCosmosDB, bool backupAzureStorage)
         {
             Stopwatch watch = Stopwatch.StartNew();
 
-            Log.Information("Creating folder: {Backupfolder}", backupfolder);
-            Directory.CreateDirectory(backupfolder);
-
-            Log.Information("Creating folder: {Zipfolder}", zipfolder);
-            Directory.CreateDirectory(zipfolder);
+            Log.Information("Creating folder: {Exportfolder}", exportfolder);
+            Directory.CreateDirectory(exportfolder);
 
             foreach (var backupjob in backupjobs)
             {
@@ -279,7 +288,7 @@ namespace multibackup
 
                     if (backupjob is BackupSqlServer)
                     {
-                        backuppath = Path.Combine(backupfolder, $"sqlserver_{backupjob.Name}_{date}.bacpac");
+                        backuppath = Path.Combine(exportfolder, $"sqlserver_{backupjob.Name}_{date}.bacpac");
                         if (backupSqlServer)
                         {
                             backupjob.Export(backuppath);
@@ -287,7 +296,7 @@ namespace multibackup
                     }
                     else if (backupjob is BackupCosmosDB)
                     {
-                        backuppath = Path.Combine(backupfolder, $"cosmosdb_{backupjob.Name}_{date}.json");
+                        backuppath = Path.Combine(exportfolder, $"cosmosdb_{backupjob.Name}_{date}.json");
                         if (backupCosmosDB)
                         {
                             backupjob.Export(backuppath);
@@ -295,7 +304,7 @@ namespace multibackup
                     }
                     else
                     {
-                        backuppath = Path.Combine(backupfolder, $"azurestorage_{backupjob.Name}_{date}");
+                        backuppath = Path.Combine(exportfolder, $"azurestorage_{backupjob.Name}_{date}");
                         if (backupAzureStorage)
                         {
                             backupjob.Export(backuppath);
@@ -303,17 +312,17 @@ namespace multibackup
                     }
 
 
-                    string zipfile = Path.ChangeExtension(Path.GetFileName(backuppath), ".7z");
+                    backupjob.Zipfile = Path.ChangeExtension(backuppath, ".7z");
 
                     string oldfolder = null;
                     try
                     {
                         oldfolder = Directory.GetCurrentDirectory();
-                        Directory.SetCurrentDirectory(zipfolder);
+                        Directory.SetCurrentDirectory(exportfolder);
 
-                        backupjob.EncryptBackup(backuppath, zipfile);
+                        backupjob.EncryptBackup(backuppath);
 
-                        if (File.Exists(zipfile))
+                        if (File.Exists(backupjob.Zipfile))
                         {
                             Statistics.SuccessCount++;
                         }
@@ -337,7 +346,7 @@ namespace multibackup
                 .Information("Done exporting");
         }
 
-        void EncryptBackup(string backuppath, string zipfile)
+        void EncryptBackup(string backuppath)
         {
             string sevenzipbinary = Tools.SevenzipBinary;
 
@@ -356,21 +365,21 @@ namespace multibackup
 
             string compression = this is BackupSqlServer ? "-mx0" : "-mx9";
 
-            string args = $"a {compression} {zipfile} {backuppath} -sdel -mhe -p{ZipPassword}";
+            string args = $"a {compression} {Zipfile} {backuppath} -sdel -mhe -p{ZipPassword}";
 
             int result = RunCommand(sevenzipbinary, args);
             watch.Stop();
             Statistics.ZipTime += watch.Elapsed;
             long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
 
-            if (result == 0 && File.Exists(zipfile) && new FileInfo(zipfile).Length > 0)
+            if (result == 0 && File.Exists(Zipfile) && new FileInfo(Zipfile).Length > 0)
             {
-                long size = new FileInfo(zipfile).Length;
+                long size = new FileInfo(Zipfile).Length;
                 long sizemb = size / 1024 / 1024;
                 Statistics.CompressedSize += size;
                 Log
                     .ForContext("ElapsedMS", elapsedms)
-                    .ForContext("Zipfile", zipfile)
+                    .ForContext("Zipfile", Zipfile)
                     .ForContext("Size", size)
                     .ForContext("SizeMB", sizemb)
                     .Information("Zip success");
@@ -382,12 +391,40 @@ namespace multibackup
                     .ForContext("Commandargs", LogHelper.Mask(args, ZipPassword))
                     .ForContext("Result", result)
                     .ForContext("ElapsedMS", elapsedms)
-                    .ForContext("Zipfile", zipfile)
+                    .ForContext("Zipfile", Zipfile)
                     .Warning("Zip fail");
             }
         }
 
-        public static void SyncBackups(string zipfolder, string targetServer, string targetAccount)
+        public static void SendBackups(BackupJob[] backupjobs, string sendfolder)
+        {
+            Log.Information("Creating folder: {Sendfolder}", sendfolder);
+            Directory.CreateDirectory(sendfolder);
+
+            var targets = backupjobs
+                .GroupBy(b => new { b.TargetServer, b.TargetAccount, b.TargetCertfile })
+                .ToArray();
+
+            Log.Information("Sending backups to {targets} target groups.", targets.Length);
+
+            foreach (var target in targets)
+            {
+                foreach (var backupjob in backupjobs)
+                {
+                    if (backupjob.TargetServer == target.Key.TargetServer && backupjob.TargetAccount == target.Key.TargetAccount && backupjob.TargetCertfile == target.Key.TargetCertfile)
+                    {
+                        string sourceFile = backupjob.Zipfile;
+                        string targetFile = Path.Combine(sendfolder, Path.GetFileName(backupjob.Zipfile));
+                        Log.Information ("Moving: {Source} -> {Target}", sourceFile, targetFile);
+                        File.Move(sourceFile, targetFile);
+                    }
+                }
+
+                SyncBackups(sendfolder, target.Key.TargetServer, target.Key.TargetAccount, target.Key.TargetCertfile);
+            }
+        }
+
+        static void SyncBackups(string zipfolder, string targetServer, string targetAccount, string targetCertfile)
         {
             string rsyncbinary = Tools.RsyncBinary;
 
@@ -398,7 +435,7 @@ namespace multibackup
             string target = $"{targetAccount}@{targetServer}:.";
 
             string binfolder = Path.GetDirectoryName(rsyncbinary);
-            string synccert = Path.Combine(Path.GetDirectoryName(binfolder), "synccert", "rsync_id_rsa.txt");
+            string synccert = Path.Combine(Path.GetDirectoryName(binfolder), "synccert", $"{targetCertfile}");
 
             string oldfolder = null;
             try

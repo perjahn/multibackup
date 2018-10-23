@@ -11,7 +11,10 @@
       "tags": {
         "environment": "test",
         "team": "one"
-      }
+      },
+      "targetserver": "#{target-server}",
+      "targetaccount": "#{target-account}",
+      "targetcertfile": "#{target-certfile}"
     },
     {
       "type": "cosmosdb",

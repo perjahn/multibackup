@@ -73,23 +73,30 @@ namespace multibackup
             string serilogTeamName = settings?.SerilogTeamName ?? "Unknown team";
             string serilogDepartment = settings?.SerilogDepartment ?? "Unknown department";
 
-            string targetServer = settings.TargetServer;
-            string targetAccount = settings.TargetAccount;
+            string defaultTargetServer = settings.TargetServer;
+            string defaultTargetAccount = settings.TargetAccount;
+            string defaultTargetCertfile = settings.TargetCertfile;
 
             string preBackupAction = settings.PreBackupAction;
             string preBackupActionArgs = settings.PreBackupActionArgs;
             string postBackupAction = settings.PostBackupAction;
             string postBackupActionArgs = settings.PostBackupActionArgs;
 
-            if (targetServer == null)
+            if (defaultTargetServer == null)
             {
                 string errorMessage = "Missing TargetServer configuration in appsettings.json";
                 Log.Error(errorMessage);
                 throw new Exception(errorMessage);
             }
-            if (targetAccount == null)
+            if (defaultTargetAccount == null)
             {
                 string errorMessage = "Missing TargetAccount configuration in appsettings.json";
+                Log.Error(errorMessage);
+                throw new Exception(errorMessage);
+            }
+            if (defaultTargetCertfile == null)
+            {
+                string errorMessage = "Missing TargetCertfile configuration in appsettings.json";
                 Log.Error(errorMessage);
                 throw new Exception(errorMessage);
             }
@@ -105,7 +112,7 @@ namespace multibackup
 
             string[] jsonfiles = Directory.GetFiles(appfolder, "backupjobs*.json");
 
-            BackupJob[] backupjobs = BackupJob.LoadBackupJobs(jsonfiles);
+            BackupJob[] backupjobs = BackupJob.LoadBackupJobs(jsonfiles, defaultTargetServer, defaultTargetAccount, defaultTargetCertfile);
 
             BackupJob.LogBackupJobs(backupjobs);
 
@@ -114,10 +121,10 @@ namespace multibackup
             string date = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
 
             string exportfolder = Path.Combine(appfolder, "export");
-            string zipfolder = Path.Combine(appfolder, "backups");
-            BackupJob.ExportBackups(backupjobs, exportfolder, date, backupSqlServer, backupCosmosDB, backupAzureStorage, zipfolder);
+            string sendfolder = Path.Combine(appfolder, "backups");
+            BackupJob.ExportBackups(backupjobs, exportfolder, date, backupSqlServer, backupCosmosDB, backupAzureStorage);
 
-            BackupJob.SyncBackups(zipfolder, targetServer, targetAccount);
+            BackupJob.SendBackups(backupjobs, sendfolder);
 
             totalwatch.Stop();
             Statistics.TotalTime = totalwatch.Elapsed;
