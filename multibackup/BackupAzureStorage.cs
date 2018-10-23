@@ -28,8 +28,7 @@ namespace multibackup
 
                     Stopwatch watch = Stopwatch.StartNew();
 
-                    string azcopyFolder = Path.Combine(Environment.GetEnvironmentVariable("LocalAppData"), "Microsoft", "Azure", "AzCopy");
-                    KillProcesses("azcopy.exe");
+                    string azcopyFolder = backupfolder.Replace("azurestorage_", $"junkfolder_");
                     if (Directory.Exists(azcopyFolder))
                     {
                         Log.Information("Deleting useless folder: {AzcopyFolder}", azcopyFolder);
@@ -48,7 +47,7 @@ namespace multibackup
                     string logfile = GetLogFileName(appfolder, Name);
                     string subdirs = Regex.IsMatch(Url, "^https://[a-z]*\\.blob\\.core\\.windows\\.net") ? " /S" : string.Empty;
 
-                    string args = $"/Source:{Url} /Dest:{backupfolder} /SourceKey:{Key} /V:{logfile}" + subdirs;
+                    string args = $"/Source:{Url} /Dest:{backupfolder} /SourceKey:{Key} /V:{logfile} /Z:{azcopyFolder}{subdirs}";
                     int result = RunCommand(azcopybinary, args);
                     watch.Stop();
                     Statistics.ExportAzureStorageTime += watch.Elapsed;
