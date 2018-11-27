@@ -28,7 +28,7 @@ namespace multibackup
 
                     Stopwatch watch = Stopwatch.StartNew();
 
-                    string azcopyFolder = backupfolder.Replace("azurestorage_", $"junkfolder_");
+                    string azcopyFolder = backupfolder.Replace("azurestorage_", "junkfolder_");
                     if (Directory.Exists(azcopyFolder))
                     {
                         Log.Information("Deleting useless folder: {AzcopyFolder}", azcopyFolder);
@@ -97,7 +97,6 @@ namespace multibackup
                 RobustDelete(backupfolder);
             }
 
-            Log.Warning("Couldn't export database to folder: {Backupfolder}", backupfolder);
             Log.Warning("Couldn't export database to folder: {Backupfolder}", backupfolder);
         }
     }
