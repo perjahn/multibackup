@@ -45,7 +45,7 @@ namespace multibackup
 
                     string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(azcopybinary));
                     string logfile = GetLogFileName(appfolder, Name);
-                    string subdirs = Regex.IsMatch(Url, "^https://[a-z]*\\.blob\\.core\\.windows\\.net") ? " /S" : string.Empty;
+                    string subdirs = Regex.IsMatch(Url, "^https://[a-z0-9]+\\.blob\\.core\\.windows\\.net") ? " /S" : string.Empty;
 
                     string args = $"/Source:{Url} /Dest:{backupfolder} /SourceKey:{Key} /V:{logfile} /Z:{azcopyFolder}{subdirs}";
                     int result = RunCommand(azcopybinary, args);
