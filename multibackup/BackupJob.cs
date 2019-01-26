@@ -409,18 +409,35 @@ namespace multibackup
 
             foreach (var target in targets)
             {
+                int files = 0;
+
                 foreach (var backupjob in backupjobs)
                 {
                     if (backupjob.TargetServer == target.Key.TargetServer && backupjob.TargetAccount == target.Key.TargetAccount && backupjob.TargetCertfile == target.Key.TargetCertfile)
                     {
                         string sourceFile = backupjob.Zipfile;
                         string targetFile = Path.Combine(sendfolder, Path.GetFileName(backupjob.Zipfile));
-                        Log.Information ("Moving: {Source} -> {Target}", sourceFile, targetFile);
-                        File.Move(sourceFile, targetFile);
+                        if (File.Exists(sourceFile))
+                        {
+                            Log.Information("Moving: {Source} -> {Target}", sourceFile, targetFile);
+                            File.Move(sourceFile, targetFile);
+                            files++;
+                        }
+                        else
+                        {
+                            Log.Warning("File missing: {Source}", sourceFile);
+                        }
                     }
                 }
 
-                SyncBackups(sendfolder, target.Key.TargetServer, target.Key.TargetAccount, target.Key.TargetCertfile);
+                if (files == 0)
+                {
+                    Log.Warning("No files to sync to server: {TargetServer}", target.Key.TargetServer);
+                }
+                else
+                {
+                    SyncBackups(sendfolder, target.Key.TargetServer, target.Key.TargetAccount, target.Key.TargetCertfile);
+                }
             }
         }
 
