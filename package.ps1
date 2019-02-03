@@ -16,7 +16,14 @@ function Main()
 
 function Gather-Artifacts([string] $version)
 {
-    Set-Alias zip "C:\Program Files\7-Zip\7z.exe"
+    if (Test-Path "C:\Program Files\7-Zip\7z.exe")
+    {
+        Set-Alias zip "C:\Program Files\7-Zip\7z.exe"
+    }
+    else
+    {
+        Set-Alias zip 7zr
+    }
 
     [string] $folder = "backup"
 
@@ -43,10 +50,10 @@ function Gather-Artifacts([string] $version)
     md $folder | Out-Null
 
     copy backupjobs.json,backupschedule.xml $folder
-    copy -Recurse multibackup\bin\*\*\*\* (Join-Path $folder "multibackup")
+    copy -Recurse (Join-Path "multibackup" "bin" "*" "*" "*" "*") (Join-Path $folder "multibackup")
 
 
-    [string] $zipfile = "multibackup." + $version + ".zip"
+    [string] $zipfile = "multibackup." + $version + ".7z"
 
     if (Test-Path $zipfile)
     {
