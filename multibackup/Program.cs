@@ -1,12 +1,13 @@
 ﻿using Collector.Serilog.Enrichers.Assembly;
 using Collector.Serilog.Enrichers.Author;
-using Collector.Serilog.Sinks.AzureEventHub;
 using Destructurama;
 using Microsoft.Azure.EventHubs;
 using Newtonsoft.Json.Linq;
 using Serilog;
 using Serilog.Enrichers.AzureWebApps;
 using Serilog.Exceptions;
+using Serilog.Formatting.Json;
+using Serilog.Sinks.AzureEventHub;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -204,7 +205,7 @@ namespace multibackup
             {
                 Console.WriteLine($"Using event hub for logging: >>>{eventHubConnectionString}<<<");
                 var eventHub = EventHubClient.CreateFromConnectionString(eventHubConnectionString);
-                config = config.WriteTo.Sink(new AzureEventHubSink(eventHub));
+                config = config.WriteTo.Sink(new AzureEventHubSink(eventHub, new Collector.Serilog.Sinks.AzureEventHub.ScalarValueTypeSuffixJsonFormatter()));
             }
 
             Log.Logger = config.CreateLogger();
