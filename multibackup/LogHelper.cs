@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -38,10 +37,8 @@ namespace multibackup
 
         public static string GetHashString(string value)
         {
-            using (var crypto = new SHA256Managed())
-            {
-                return string.Concat(crypto.ComputeHash(Encoding.UTF8.GetBytes(value)).Select(b => b.ToString("x2")));
-            }
+            using var crypto = new SHA256Managed();
+            return string.Concat(crypto.ComputeHash(Encoding.UTF8.GetBytes(value)).Select(b => b.ToString("x2")));
         }
 
         public static string MaskWithHash(string text, string[] secrets)
