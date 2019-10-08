@@ -23,7 +23,7 @@ namespace multibackup
             SevenzipBinary = GetToolPath("p7zip", Path.Combine(appfolder, "sevenzip", "7z.exe"), errors);
             RsyncBinary = GetToolPath("rsync", Path.Combine(appfolder, "rsync", "bin", "rsync.exe"), errors);
 
-            if (errors.ToString() != string.Empty)
+            if (errors.ToString().Length != 0)
             {
                 throw new Exception(errors.ToString());
             }

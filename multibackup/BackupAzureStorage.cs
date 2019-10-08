@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 
 namespace multibackup
 {
-    class BackupAzureStorage : BackupJob
+    public class BackupAzureStorage : BackupJob
     {
         [NotLogged]
         public string Url { get; set; }

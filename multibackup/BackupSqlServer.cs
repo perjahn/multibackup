@@ -6,7 +6,7 @@ using System.IO;
 
 namespace multibackup
 {
-    class BackupSqlServer : BackupJob
+    public class BackupSqlServer : BackupJob
     {
         [NotLogged]
         public string ConnectionString { get; set; }

@@ -50,7 +50,7 @@ function Gather-Artifacts([string] $version)
     md $folder | Out-Null
 
     copy backupjobs.json,backupschedule.xml $folder
-    copy -Recurse (Join-Path "multibackup" "bin" "*" "*" "*" "*") (Join-Path $folder "multibackup")
+    copy -Recurse (Join-Path "multibackup" "bin" "*" "*" "*" "publish") (Join-Path $folder "multibackup")
 
 
     [string] $zipfile = "multibackup." + $version + ".7z"

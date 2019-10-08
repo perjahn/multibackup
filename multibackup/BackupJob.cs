@@ -10,7 +10,7 @@ using System.Threading;
 
 namespace multibackup
 {
-    class BackupJob
+    public class BackupJob
     {
         public string Name { get; set; }
         [NotLogged]
@@ -538,7 +538,7 @@ namespace multibackup
             return logfile;
         }
 
-        protected void RobustDelete(string folder)
+        protected static void RobustDelete(string folder)
         {
             if (Directory.Exists(folder))
             {
@@ -593,7 +593,7 @@ namespace multibackup
             return process.ExitCode;
         }
 
-        protected void KillProcesses(string processName)
+        protected static void KillProcesses(string processName)
         {
             foreach (Process process in Process.GetProcessesByName(processName))
             {

@@ -1,12 +1,15 @@
 ﻿using Destructurama.Attributed;
 using Serilog;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace multibackup
 {
-    class BackupCosmosDB : BackupJob
+    public class BackupCosmosDB : BackupJob
     {
         [NotLogged]
         public string ConnectionString { get; set; }
@@ -28,7 +31,22 @@ namespace multibackup
                     string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(dtbinary));
                     string logfile = GetLogFileName(appfolder, Name);
 
-                    string args = $"/ErrorLog:{logfile} /ErrorDetails:All /s:DocumentDB /s.ConnectionString:{ConnectionString} /s.Collection:{Collection} /t:JsonFile /t.File:{backupfile} /t.Prettify";
+                    string apitype;
+                    if (IsDocumentDB(ConnectionString))
+                    {
+                        apitype = "DocumentDB";
+                    }
+                    else if (IsMongoDB(ConnectionString))
+                    {
+                        apitype = "MongoDB";
+                    }
+                    else
+                    {
+                        Log.Warning("Unparsable connection string, cannot determine api type.");
+                        return;
+                    }
+
+                    string args = $"/ErrorLog:{logfile} /ErrorDetails:All /s:{apitype}  /s.ConnectionString:{ConnectionString} /s.Collection:{Collection} /t:JsonFile /t.File:{backupfile} /t.Prettify";
 
                     int result = RunCommand(dtbinary, args);
                     watch.Stop();
@@ -78,6 +96,17 @@ namespace multibackup
             }
 
             Log.Warning("Couldn't export database to file: {Backupfile}", backupfile);
+        }
+
+        public static bool IsDocumentDB(string connectionString)
+        {
+            string[] tokens = connectionString.Split(';');
+            return tokens.Any(t => Regex.IsMatch(t.Trim(), @"^AccountEndpoint=https:\/\/.+\.documents\.azure\.com:443\/$"));
+        }
+
+        public static bool IsMongoDB(string connectionString)
+        {
+            return Regex.IsMatch(connectionString.Trim(), @"^mongodb:\/\/.+\.documents\.azure\.com:10255\/.*$");
         }
     }
 }
