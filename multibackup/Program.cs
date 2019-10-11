@@ -80,6 +80,10 @@ namespace multibackup
             string preBackupActionArgs = settings.PreBackupActionArgs;
             string postBackupAction = settings.PostBackupAction;
             string postBackupActionArgs = settings.PostBackupActionArgs;
+            string preSyncAction = settings.PreSyncAction;
+            string preSyncActionArgs = settings.PreSyncActionArgs;
+            string postSyncAction = settings.PostSyncAction;
+            string postSyncActionArgs = settings.PostSyncActionArgs;
 
             if (defaultTargetServer == null)
             {
@@ -107,8 +111,6 @@ namespace multibackup
 
             Stopwatch totalwatch = Stopwatch.StartNew();
 
-            RunCommand(preBackupAction, preBackupActionArgs);
-
             string[] jsonfiles = Directory.GetFiles(appfolder, "backupjobs*.json");
 
             BackupJob[] backupjobs = BackupJob.LoadBackupJobs(jsonfiles, defaultTargetServer, defaultTargetAccount, defaultTargetCertfile);
@@ -121,9 +123,14 @@ namespace multibackup
 
             string exportfolder = Path.Combine(appfolder, "export");
             string sendfolder = Path.Combine(appfolder, "backups");
-            BackupJob.ExportBackups(backupjobs, exportfolder, date, backupSqlServer, backupCosmosDB, backupAzureStorage);
 
+            RunCommand(preBackupAction, preBackupActionArgs);
+            BackupJob.ExportBackups(backupjobs, exportfolder, date, backupSqlServer, backupCosmosDB, backupAzureStorage);
+            RunCommand(postBackupAction, postBackupActionArgs);
+
+            RunCommand(preSyncAction, preSyncActionArgs);
             BackupJob.SendBackups(backupjobs, sendfolder);
+            RunCommand(postSyncAction, postSyncActionArgs);
 
             totalwatch.Stop();
             Statistics.TotalTime = totalwatch.Elapsed;
@@ -143,8 +150,6 @@ namespace multibackup
                 .ForContext("BackupSuccessCount", Statistics.SuccessCount)
                 .ForContext("BackupFailCount", backupjobs.Length - Statistics.SuccessCount)
                 .Information("Backup finished");
-
-            RunCommand(postBackupAction, postBackupActionArgs);
         }
 
         static JObject LoadAppSettings()
