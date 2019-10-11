@@ -130,7 +130,6 @@ namespace multibackup
 
             RunCommand(preSyncAction, preSyncActionArgs);
             BackupJob.SendBackups(backupjobs, sendfolder);
-            RunCommand(postSyncAction, postSyncActionArgs);
 
             totalwatch.Stop();
             Statistics.TotalTime = totalwatch.Elapsed;
@@ -150,6 +149,8 @@ namespace multibackup
                 .ForContext("BackupSuccessCount", Statistics.SuccessCount)
                 .ForContext("BackupFailCount", backupjobs.Length - Statistics.SuccessCount)
                 .Information("Backup finished");
+
+            RunCommand(postSyncAction, postSyncActionArgs);
         }
 
         static JObject LoadAppSettings()
