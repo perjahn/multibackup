@@ -247,12 +247,12 @@ namespace multibackup
                 }
             };
 
-            Log.Debug("Running: >>{Binary}<< >>{Commandargs}<<", binary, args);
+            Log.Information("Running: >>{Binary}<<", binary);
 
             process.Start();
             process.WaitForExit();
 
-            Log.Debug("Ran: >>{Binary}<< >>{Commandargs}<< ExitCode: {ExitCode}", binary, args, process.ExitCode);
+            Log.Information("Ran: >>{Binary}<< ExitCode: {ExitCode}", binary, process.ExitCode);
 
             return process.ExitCode;
         }
