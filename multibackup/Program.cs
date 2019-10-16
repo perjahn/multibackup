@@ -19,17 +19,17 @@ namespace multibackup
     {
         static int Main(string[] args)
         {
-            string[] parsedArgs = ParseArgs(args, out bool backupSqlServer, out bool backupCosmosDB, out bool backupAzureStorage);
+            string[] parsedArgs = ParseArgs(args, out bool backupSqlServer, out bool backupCosmosDB, out bool backupMongoDB, out bool backupAzureStorage);
             if (parsedArgs.Length > 0)
             {
                 string version = GetAppVersion();
-                Console.WriteLine($"multibackup {version}{Environment.NewLine}{Environment.NewLine}Usage: multibackup.exe [-OnlyBackupSqlServer] [-OnlyBackupCosmosDB] [-OnlyBackupAzureStorage]");
+                Console.WriteLine($"multibackup {version}{Environment.NewLine}{Environment.NewLine}Usage: multibackup.exe [-OnlyBackupSqlServer] [-OnlyBackupCosmosDB] [-OnlyBackupMongoDB] [-OnlyBackupAzureStorage]");
                 return 1;
             }
 
             try
             {
-                DoExceptionalStuff(backupSqlServer, backupCosmosDB, backupAzureStorage);
+                DoExceptionalStuff(backupSqlServer, backupCosmosDB, backupMongoDB, backupAzureStorage);
             }
             catch (Exception ex)
             {
@@ -40,31 +40,41 @@ namespace multibackup
             return 0;
         }
 
-        static string[] ParseArgs(string[] args, out bool backupSqlServer, out bool backupCosmosDB, out bool backupAzureStorage)
+        static string[] ParseArgs(string[] args, out bool backupSqlServer, out bool backupCosmosDB, out bool backupMongoDB, out bool backupAzureStorage)
         {
             backupSqlServer = true;
             backupCosmosDB = true;
+            backupMongoDB = true;
             backupAzureStorage = true;
             if (args.Contains("-OnlyBackupSqlServer"))
             {
                 backupCosmosDB = false;
+                backupMongoDB = false;
                 backupAzureStorage = false;
             }
             if (args.Contains("-OnlyBackupCosmosDB"))
             {
                 backupSqlServer = false;
+                backupMongoDB = false;
+                backupAzureStorage = false;
+            }
+            if (args.Contains("-OnlyBackupMongoDB"))
+            {
+                backupSqlServer = false;
+                backupCosmosDB = false;
                 backupAzureStorage = false;
             }
             if (args.Contains("-OnlyBackupAzureStorage"))
             {
                 backupSqlServer = false;
                 backupCosmosDB = false;
+                backupMongoDB = false;
             }
 
             return args.Where(a => !a.StartsWith("-")).ToArray();
         }
 
-        static void DoExceptionalStuff(bool backupSqlServer, bool backupCosmosDB, bool backupAzureStorage)
+        static void DoExceptionalStuff(bool backupSqlServer, bool backupCosmosDB, bool backupMongoDB, bool backupAzureStorage)
         {
             dynamic settings = LoadAppSettings();
 
@@ -124,11 +134,20 @@ namespace multibackup
             string exportfolder = Path.Combine(appfolder, "export");
             string sendfolder = Path.Combine(appfolder, "backups");
 
-            RunCommand(preBackupAction, preBackupActionArgs);
-            BackupJob.ExportBackups(backupjobs, exportfolder, date, backupSqlServer, backupCosmosDB, backupAzureStorage);
-            RunCommand(postBackupAction, postBackupActionArgs);
+            if (preBackupAction != null)
+            {
+                BackupJob.RunCommand(preBackupAction, preBackupActionArgs);
+            }
+            BackupJob.ExportBackups(backupjobs, exportfolder, date, backupSqlServer, backupCosmosDB, backupMongoDB, backupAzureStorage);
+            if (postBackupAction != null)
+            {
+                BackupJob.RunCommand(postBackupAction, postBackupActionArgs);
+            }
 
-            RunCommand(preSyncAction, preSyncActionArgs);
+            if (preSyncAction != null)
+            {
+                BackupJob.RunCommand(preSyncAction, preSyncActionArgs);
+            }
             BackupJob.SendBackups(backupjobs, sendfolder);
 
             totalwatch.Stop();
@@ -141,6 +160,7 @@ namespace multibackup
                 .ForContext("CompressedSizeMB", Statistics.CompressedSize / 1024 / 1024)
                 .ForContext("ExportSqlServerTimeMS", (long)Statistics.ExportSqlServerTime.TotalMilliseconds)
                 .ForContext("ExportCosmosDBTimeMS", (long)Statistics.ExportCosmosDBTime.TotalMilliseconds)
+                .ForContext("ExportMongoDBTimeMS", (long)Statistics.ExportCosmosDBTime.TotalMilliseconds)
                 .ForContext("ExportAzureStorageTimeMS", (long)Statistics.ExportAzureStorageTime.TotalMilliseconds)
                 .ForContext("ZipTimeMS", (long)Statistics.ZipTime.TotalMilliseconds)
                 .ForContext("SyncTimeMS", (long)Statistics.SyncTime.TotalMilliseconds)
@@ -149,8 +169,10 @@ namespace multibackup
                 .ForContext("BackupSuccessCount", Statistics.SuccessCount)
                 .ForContext("BackupFailCount", backupjobs.Length - Statistics.SuccessCount)
                 .Information("Backup finished");
-
-            RunCommand(postSyncAction, postSyncActionArgs);
+            if (postSyncAction != null)
+            {
+                BackupJob.RunCommand(postSyncAction, postSyncActionArgs);
+            }
         }
 
         static JObject LoadAppSettings()
@@ -230,31 +252,6 @@ namespace multibackup
             {
                 return string.Empty;
             }
-        }
-
-        static int RunCommand(string binary, string args)
-        {
-            if (binary == null)
-            {
-                return 0;
-            }
-
-            Process process = new Process
-            {
-                StartInfo = new ProcessStartInfo(binary, args)
-                {
-                    UseShellExecute = false
-                }
-            };
-
-            Log.Information("Running: >>{Binary}<<", binary);
-
-            process.Start();
-            process.WaitForExit();
-
-            Log.Information("Ran: >>{Binary}<< ExitCode: {ExitCode}", binary, process.ExitCode);
-
-            return process.ExitCode;
         }
     }
 }

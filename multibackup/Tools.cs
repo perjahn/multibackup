@@ -9,6 +9,7 @@ namespace multibackup
     {
         public static string SqlpackageBinary { get; set; }
         public static string DtBinary { get; set; }
+        public static string MongodumpBinary { get; set; }
         public static string AzcopyBinary { get; set; }
         public static string SevenzipBinary { get; set; }
         public static string RsyncBinary { get; set; }
@@ -19,8 +20,9 @@ namespace multibackup
 
             SqlpackageBinary = GetToolPath("sqlpackage", Path.Combine(appfolder, "sqlpackage", "SqlPackage.exe"), errors);
             DtBinary = GetToolPath("dt", Path.Combine(appfolder, "dt", "dt.exe"), errors);
+            MongodumpBinary = GetToolPath("mongodump", Path.Combine(appfolder, "mongodump", "mongodump.exe"), errors);
             AzcopyBinary = GetToolPath("azcopy", Path.Combine(appfolder, "azcopy", "AzCopy.exe"), errors);
-            SevenzipBinary = GetToolPath("p7zip", Path.Combine(appfolder, "sevenzip", "7z.exe"), errors);
+            SevenzipBinary = GetToolPath("7z", Path.Combine(appfolder, "sevenzip", "7z.exe"), errors);
             RsyncBinary = GetToolPath("rsync", Path.Combine(appfolder, "rsync", "bin", "rsync.exe"), errors);
 
             if (errors.ToString().Length != 0)
@@ -29,10 +31,11 @@ namespace multibackup
             }
 
 
-            Log.Information("Using {Toolname} tool: {Binary}", "sqlserver", SqlpackageBinary);
-            Log.Information("Using {Toolname} tool: {Binary}", "cosmosdb", DtBinary);
-            Log.Information("Using {Toolname} tool: {Binary}", "azurestorage", AzcopyBinary);
-            Log.Information("Using {Toolname} tool: {Binary}", "zip", SevenzipBinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "sqlpackage", SqlpackageBinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "dt", DtBinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "mongodump", MongodumpBinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "azcopy", AzcopyBinary);
+            Log.Information("Using {Toolname} tool: {Binary}", "7z", SevenzipBinary);
             Log.Information("Using {Toolname} tool: {Binary}", "rsync", RsyncBinary);
         }
 

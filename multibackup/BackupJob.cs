@@ -1,6 +1,7 @@
 ﻿using Destructurama.Attributed;
 using Newtonsoft.Json.Linq;
 using Serilog;
+using Serilog.Events;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -126,6 +127,17 @@ namespace multibackup
                         }
                         collection = backupjob.collection.Value;
                     }
+                    else if (string.Compare(type, "mongodb", false) == 0)
+                    {
+                        if (backupjob.connectionstring == null)
+                        {
+                            Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) is missing connectionstring field, ignoring backup job.",
+                                backupjob.index.Value, type, name);
+                            json.backupjobs[i].Remove();
+                            continue;
+                        }
+                        connectionstring = backupjob.connectionstring.Value;
+                    }
                     else if (string.Compare(type, "azurestorage", false) == 0)
                     {
                         if (backupjob.url == null)
@@ -189,6 +201,10 @@ namespace multibackup
                     {
                         job = new BackupCosmosDB { ConnectionString = connectionstring, Collection = collection };
                     }
+                    else if (string.Compare(type, "mongodb", true) == 0)
+                    {
+                        job = new BackupMongoDB { ConnectionString = connectionstring };
+                    }
                     else
                     {
                         job = new BackupAzureStorage { Url = url, Key = key };
@@ -226,34 +242,42 @@ namespace multibackup
             {
                 ["SqlServer"] = 0,
                 ["CosmosDB"] = 0,
+                ["MongoDB"] = 0,
                 ["AzureStorage"] = 0
             };
             for (int i = 0; i < backupjobs.Length; i++)
             {
                 BackupJob backupjob = backupjobs[i];
 
-                string type = backupjob is BackupSqlServer ? "SqlServer" : backupjob is BackupCosmosDB ? "CosmosDB" : "AzureStorage";
+                string type = backupjob is BackupSqlServer ? "SqlServer" : backupjob is BackupCosmosDB ? "CosmosDB" : backupjob is BackupMongoDB ? "MongoDB" : "AzureStorage";
                 typecounts[type]++;
 
                 using (new ContextLogger(backupjob.Tags))
                 {
                     if (backupjob is BackupSqlServer)
                     {
-                        Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, ConnectionString: {HashedConnectionString}, Zippassword: {HashedZippassword}",
+                        Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, HashedConnectionString: {HashedConnectionString}, HashedZippassword: {HashedZippassword}",
                             backupjob.Name, type,
                             LogHelper.GetHashString((backupjob as BackupSqlServer).ConnectionString),
                             LogHelper.GetHashString(backupjob.ZipPassword));
                     }
                     else if (backupjob is BackupCosmosDB)
                     {
-                        Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, ConnectionString: {HashedConnectionString}, Collection: {HashedCollection}, Zippassword: {HashedZippassword}",
+                        Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, HashedConnectionString: {HashedConnectionString}, HashedCollection: {HashedCollection}, HashedZippassword: {HashedZippassword}",
                             backupjob.Name, type,
                             LogHelper.GetHashString((backupjob as BackupCosmosDB).ConnectionString), LogHelper.GetHashString((backupjob as BackupCosmosDB).Collection),
                             LogHelper.GetHashString(backupjob.ZipPassword));
                     }
+                    else if (backupjob is BackupMongoDB)
+                    {
+                        Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, HashedConnectionString: {HashedConnectionString}, HashedZippassword: {HashedZippassword}",
+                            backupjob.Name, type,
+                            LogHelper.GetHashString((backupjob as BackupMongoDB).ConnectionString),
+                            LogHelper.GetHashString(backupjob.ZipPassword));
+                    }
                     else if (backupjob is BackupAzureStorage)
                     {
-                        Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, Url: {HashedUrl}, Key: {HashedKey}, Zippassword: {HashedZippassword}",
+                        Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, HashedUrl: {HashedUrl}, HashedKey: {HashedKey}, HashedZippassword: {HashedZippassword}",
                             backupjob.Name, type,
                             LogHelper.GetHashString((backupjob as BackupAzureStorage).Url), LogHelper.GetHashString((backupjob as BackupAzureStorage).Key),
                             LogHelper.GetHashString(backupjob.ZipPassword));
@@ -264,12 +288,13 @@ namespace multibackup
             Log
                 .ForContext("SqlServerCount", typecounts["SqlServer"])
                 .ForContext("CosmosDBCount", typecounts["CosmosDB"])
+                .ForContext("MongoDBCount", typecounts["MongoDB"])
                 .ForContext("AzureStorageCount", typecounts["AzureStorage"])
                 .ForContext("TotalCount", backupjobs.Length)
                 .Information("Backup counts");
         }
 
-        public static void ExportBackups(BackupJob[] backupjobs, string exportfolder, string date, bool backupSqlServer, bool backupCosmosDB, bool backupAzureStorage)
+        public static void ExportBackups(BackupJob[] backupjobs, string exportfolder, string date, bool backupSqlServer, bool backupCosmosDB, bool backupMongoDB, bool backupAzureStorage)
         {
             Stopwatch watch = Stopwatch.StartNew();
 
@@ -298,6 +323,14 @@ namespace multibackup
                     {
                         backuppath = Path.Combine(exportfolder, $"cosmosdb_{backupjob.Name}_{date}.json");
                         if (backupCosmosDB)
+                        {
+                            backupjob.Export(backuppath);
+                        }
+                    }
+                    else if (backupjob is BackupMongoDB)
+                    {
+                        backuppath = Path.Combine(exportfolder, $"mongodb_{backupjob.Name}_{date}");
+                        if (backupMongoDB)
                         {
                             backupjob.Export(backuppath);
                         }
@@ -355,7 +388,7 @@ namespace multibackup
                 Log.Warning("Backup file not found, ignoring: {Backuppath}", backuppath);
                 return;
             }
-            if (this is BackupAzureStorage && !Directory.Exists(backuppath))
+            if ((this is BackupMongoDB || this is BackupAzureStorage) && !Directory.Exists(backuppath))
             {
                 Log.Warning("Backup folder not found, ignoring: {Backuppath}", backuppath);
                 return;
@@ -573,8 +606,14 @@ namespace multibackup
             }
         }
 
-        protected static int RunCommand(string binary, string args)
+        public static int RunCommand(string binary, string args)
         {
+            if (binary == null)
+            {
+                Log.Warning("Binary null.");
+                return 0;
+            }
+
             Process process = new Process
             {
                 StartInfo = new ProcessStartInfo(binary, args)
@@ -583,12 +622,26 @@ namespace multibackup
                 }
             };
 
-            Log.Debug("Running: >>{Binary}<< >>{Commandargs}<<", binary, args);
+            if (Log.IsEnabled(LogEventLevel.Debug))
+            {
+                Log.Debug("Running: {Binary} {Commandargs}", binary, args);
+            }
+            else if (Log.IsEnabled(LogEventLevel.Information))
+            {
+                Log.Information("Running: {Binary}", binary);
+            }
 
             process.Start();
             process.WaitForExit();
 
-            Log.Debug("Ran: >>{Binary}<< >>{Commandargs}<< ExitCode: {ExitCode}", binary, args, process.ExitCode);
+            if (Log.IsEnabled(LogEventLevel.Debug))
+            {
+                Log.Debug("Ran: {Binary} {Commandargs} ExitCode: {ExitCode}", binary, args, process.ExitCode);
+            }
+            else if (Log.IsEnabled(LogEventLevel.Information))
+            {
+                Log.Information("Ran: {Binary} ExitCode: {ExitCode}", binary, process.ExitCode);
+            }
 
             return process.ExitCode;
         }
