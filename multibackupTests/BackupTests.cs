@@ -21,7 +21,7 @@ namespace multibackup.Tests
 
                 BackupJob.ExcludeBackupJobs(backupjobs, backupSqlServer, backupCosmosDB, backupMongoDB, backupAzureStorage);
 
-                Assert.AreEqual(results[i], backupjobs.Count, $"i: {i}");
+                Assert.AreEqual(results[i], backupjobs.Count, $"i: {i}, backupSqlServer: {backupSqlServer}, backupCosmosDB: {backupCosmosDB}, backupMongoDB: {backupMongoDB}, backupAzureStorage: {backupAzureStorage}");
             }
         }
 
@@ -38,6 +38,7 @@ namespace multibackup.Tests
                     TargetServer = string.Empty,
                     Zipfile = string.Empty,
                     ZipPassword = string.Empty,
+                    Type = BackupType.SqlServer,
                     ConnectionString = string.Empty
                 },
                 new BackupCosmosDB
@@ -49,6 +50,7 @@ namespace multibackup.Tests
                     TargetServer = string.Empty,
                     Zipfile = string.Empty,
                     ZipPassword = string.Empty,
+                    Type = BackupType.CosmosDB,
                     ConnectionString = string.Empty,
                     Collection = string.Empty
                 },
@@ -61,6 +63,7 @@ namespace multibackup.Tests
                     TargetServer = string.Empty,
                     Zipfile = string.Empty,
                     ZipPassword = string.Empty,
+                    Type = BackupType.MongoDB,
                     ConnectionString = string.Empty
                 },
                 new BackupAzureStorage
@@ -72,6 +75,7 @@ namespace multibackup.Tests
                     TargetServer = string.Empty,
                     Zipfile = string.Empty,
                     ZipPassword = string.Empty,
+                    Type= BackupType.AzureStorage,
                     Url = string.Empty,
                     Key = string.Empty
                 }
