@@ -123,7 +123,9 @@ namespace multibackup
 
             string[] jsonfiles = Directory.GetFiles(appfolder, "backupjobs*.json");
 
-            BackupJob[] backupjobs = BackupJob.LoadBackupJobs(jsonfiles, defaultTargetServer, defaultTargetAccount, defaultTargetCertfile);
+            var backupjobs = BackupJob.LoadBackupJobs(jsonfiles, defaultTargetServer, defaultTargetAccount, defaultTargetCertfile);
+
+            BackupJob.ExcludeBackupJobs(backupjobs, backupSqlServer, backupCosmosDB, backupMongoDB, backupAzureStorage);
 
             BackupJob.LogBackupJobs(backupjobs);
 
@@ -138,7 +140,7 @@ namespace multibackup
             {
                 BackupJob.RunCommand(preBackupAction, preBackupActionArgs);
             }
-            BackupJob.ExportBackups(backupjobs, exportfolder, date, backupSqlServer, backupCosmosDB, backupMongoDB, backupAzureStorage);
+            BackupJob.ExportBackups(backupjobs, exportfolder, date);
             if (postBackupAction != null)
             {
                 BackupJob.RunCommand(postBackupAction, postBackupActionArgs);
@@ -165,9 +167,9 @@ namespace multibackup
                 .ForContext("ZipTimeMS", (long)Statistics.ZipTime.TotalMilliseconds)
                 .ForContext("SyncTimeMS", (long)Statistics.SyncTime.TotalMilliseconds)
                 .ForContext("TotalTimeMS", (long)Statistics.TotalTime.TotalMilliseconds)
-                .ForContext("TotalBackupJobs", backupjobs.Length)
+                .ForContext("TotalBackupJobs", backupjobs.Count)
                 .ForContext("BackupSuccessCount", Statistics.SuccessCount)
-                .ForContext("BackupFailCount", backupjobs.Length - Statistics.SuccessCount)
+                .ForContext("BackupFailCount", backupjobs.Count - Statistics.SuccessCount)
                 .Information("Backup finished");
             if (postSyncAction != null)
             {
