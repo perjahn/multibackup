@@ -49,7 +49,7 @@ namespace multibackup
             Log.Information("Deleting logfile: {Logfile}", logfile);
             File.Delete(logfile);
 
-            if (result == 0 && ContainsFiles(backupfile))
+            if (result == 0 && File.Exists(backupfile) && new FileInfo(backupfile).Length > 0)
             {
                 BackupPath = backupfile;
                 long size = new FileInfo(backupfile).Length;
@@ -72,7 +72,7 @@ namespace multibackup
                 .ForContext("Backupfile", backupfile)
                 .Warning("Export fail");
 
-            if (IsEmpty(backupfile))
+            if (File.Exists(backupfile) && new FileInfo(backupfile).Length == 0)
             {
                 Log.Information("Deleting empty file: {Backupfile}", backupfile);
                 File.Delete(backupfile);
