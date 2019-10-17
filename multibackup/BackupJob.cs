@@ -299,7 +299,7 @@ namespace multibackup
                         (backupjob.Type == BackupType.MongoDB && !backupMongoDB) ||
                         (backupjob.Type == BackupType.AzureStorage && !backupAzureStorage))
                     {
-                        Log.Information("Excluding backupjob: Jobname: {Jobname}, Jobtype: {Jobtype}", backupjob.Name, backupjob.Type);
+                        Log.Information("Excluding backupjob: Jobtype: {Jobtype}, Jobname: {Jobname}", backupjob.Type, backupjob.Name);
                         backupjobs.RemoveAt(i);
                     }
                     else
@@ -373,7 +373,7 @@ namespace multibackup
                 }
                 if (!result)
                 {
-                    Log.Warning("Couldn't export database: {BackupPath}", BackupPath);
+                    Log.Warning("Couldn't export database: Jobtype: {Jobtype}, Jobname: {Jobname}");
                     return;
                 }
 
