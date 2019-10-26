@@ -79,8 +79,6 @@ namespace multibackup
             dynamic settings = LoadAppSettings();
 
             string eventHubConnectionString = settings.EventHubConnectionString;
-            string serilogTeamName = settings?.SerilogTeamName ?? "Unknown team";
-            string serilogDepartment = settings?.SerilogDepartment ?? "Unknown department";
 
             string defaultTargetServer = settings.TargetServer;
             string defaultTargetAccount = settings.TargetAccount;
@@ -94,6 +92,9 @@ namespace multibackup
             string preSyncActionArgs = settings.PreSyncActionArgs;
             string postSyncAction = settings.PostSyncAction;
             string postSyncActionArgs = settings.PostSyncActionArgs;
+
+            string serilogTeamName = settings?.SerilogTeamName ?? "Unknown team";
+            string serilogDepartment = settings?.SerilogDepartment ?? "Unknown department";
 
             if (defaultTargetServer == null)
             {
@@ -116,14 +117,19 @@ namespace multibackup
 
             ConfigureLogging(eventHubConnectionString, serilogTeamName, serilogDepartment);
 
-            string appfolder = Path.GetDirectoryName(Directory.GetCurrentDirectory());
-
+            string appfolder = PathHelper.GetParentFolder(Directory.GetCurrentDirectory());
 
             Stopwatch totalwatch = Stopwatch.StartNew();
 
             string[] jsonfiles = Directory.GetFiles(appfolder, "backupjobs*.json");
 
-            var backupjobs = BackupJob.LoadBackupJobs(jsonfiles, defaultTargetServer, defaultTargetAccount, defaultTargetCertfile);
+            string exportFolder = Path.Combine(appfolder, "export");
+            Log.Information("Creating folder: {ExportFolder}", exportFolder);
+            Directory.CreateDirectory(exportFolder);
+
+            string date = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+
+            var backupjobs = BackupJob.LoadBackupJobs(jsonfiles, defaultTargetServer, defaultTargetAccount, defaultTargetCertfile, exportFolder, date);
 
             BackupJob.ExcludeBackupJobs(backupjobs, backupSqlServer, backupCosmosDB, backupMongoDB, backupAzureStorage);
 
@@ -131,16 +137,13 @@ namespace multibackup
 
             Tools.Prepare(appfolder);
 
-            string date = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-
-            string exportfolder = Path.Combine(appfolder, "export");
             string sendfolder = Path.Combine(appfolder, "backups");
 
             if (preBackupAction != null)
             {
                 BackupJob.RunCommand(preBackupAction, preBackupActionArgs);
             }
-            BackupJob.ExportBackups(backupjobs, exportfolder, date);
+            BackupJob.ExportBackups(backupjobs, exportFolder);
             if (postBackupAction != null)
             {
                 BackupJob.RunCommand(postBackupAction, postBackupActionArgs);

@@ -1,5 +1,6 @@
 ﻿using Destructurama.Attributed;
 using Serilog;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -10,9 +11,16 @@ namespace multibackup
     public class BackupAzureStorage : BackupJob
     {
         [NotLogged]
-        public string Url { get; set; }
+        public string Url { get; }
         [NotLogged]
-        public string Key { get; set; }
+        public string Key { get; }
+
+        public BackupAzureStorage(string name, string zipPassword, Dictionary<string, object> tags, string targetServer, string targetAccount, string targetCertfile, string exportFolder, string date,
+            string url, string key) : base(name, BackupType.AzureStorage, zipPassword, tags, targetServer, targetAccount, targetCertfile, Path.Combine(exportFolder, $"azurestorage_{name}_{date}"))
+        {
+            Url = url;
+            Key = key;
+        }
 
         protected override void LogBackupJob()
         {
@@ -22,9 +30,9 @@ namespace multibackup
                 LogHelper.GetHashString(ZipPassword));
         }
 
-        protected override bool Export(string exportfolder, string date)
+        protected override bool Export()
         {
-            var backupfolder = Path.Combine(exportfolder, $"azurestorage_{Name}_{date}");
+            var backupfolder = ExportPath;
             var azcopybinary = Tools.AzcopyBinary;
 
             Log.Information("Exporting: {Backupfolder}", backupfolder);
@@ -46,7 +54,7 @@ namespace multibackup
             Log.Information("Creating folder: {Backupfolder}", backupfolder);
             Directory.CreateDirectory(backupfolder);
 
-            string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(azcopybinary));
+            string appfolder = PathHelper.GetParentFolder(PathHelper.GetParentFolder(azcopybinary));
             string logfile = GetLogFileName(appfolder, Name);
             string subdirs = Regex.IsMatch(Url, "^https://[a-z0-9]+\\.blob\\.core\\.windows\\.net") ? " /S" : string.Empty;
 
@@ -70,7 +78,6 @@ namespace multibackup
 
             if (result == 0 && ContainsFiles(backupfolder))
             {
-                BackupPath = backupfolder;
                 long size = Directory.GetFiles(backupfolder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
                 long sizemb = size / 1024 / 1024;
                 Statistics.UncompressedSize += size;

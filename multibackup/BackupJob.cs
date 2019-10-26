@@ -21,27 +21,39 @@ namespace multibackup
 
     public class BackupJob
     {
-        public string Name { get; set; }
-        public BackupType Type { get; set; }
+        public string Name { get; }
+        public BackupType Type { get; }
         [NotLogged]
-        public string ZipPassword { get; set; }
-        public Dictionary<string, object> Tags { get; set; }
+        public string ZipPassword { get; }
+        public Dictionary<string, object> Tags { get; }
         [NotLogged]
-        public string TargetServer { get; set; }
+        public string TargetServer { get; }
         [NotLogged]
-        public string TargetAccount { get; set; }
+        public string TargetAccount { get; }
         [NotLogged]
-        public string TargetCertfile { get; set; }
-        [NotLogged]
-        public string BackupPath { get; set; }
-        [NotLogged]
-        public string Zipfile { get; set; }
+        public string TargetCertfile { get; }
+        public string ExportPath { get; }
+        public string Zipfile { get; }
 
 
         protected virtual void LogBackupJob() => throw new NotImplementedException();
-        protected virtual bool Export(string exportfolder, string date) => throw new NotImplementedException();
+        protected virtual bool Export() => throw new NotImplementedException();
 
-        public static List<BackupJob> LoadBackupJobs(string[] jsonfiles, string defaultTargetServer, string defaultTargetAccount, string defaultTargetCertfile)
+        public BackupJob(string name, BackupType type, string zipPassword, Dictionary<string, object> tags, string targetServer, string targetAccount, string targetCertfile, string exportPath)
+        {
+            Name = name;
+            Type = type;
+            ZipPassword = zipPassword;
+            Tags = tags;
+            TargetServer = targetServer;
+            TargetAccount = targetAccount;
+            TargetCertfile = targetCertfile;
+            ExportPath = exportPath;
+            Zipfile = Path.ChangeExtension(exportPath, ".7z");
+
+        }
+
+        public static List<BackupJob> LoadBackupJobs(string[] jsonfiles, string defaultTargetServer, string defaultTargetAccount, string defaultTargetCertfile, string exportFolder, string date)
         {
             var backupjobs = new List<BackupJob>();
 
@@ -54,9 +66,12 @@ namespace multibackup
                 Dictionary<string, string> filetags = new Dictionary<string, string>();
                 if (json.tags != null)
                 {
-                    foreach (JProperty jsontag in json.tags)
+                    foreach (var jsontag in json.tags)
                     {
-                        filetags.Add(jsontag.Name, jsontag.Value.ToString());
+                        if (jsontag != null)
+                        {
+                            filetags.Add(jsontag.Name, jsontag.Value.ToString());
+                        }
                     }
                 }
 
@@ -97,10 +112,6 @@ namespace multibackup
 
                     string type = backupjob.type.Value;
                     string name = backupjob.name.Value;
-                    string connectionstring = null;
-                    string collection = null;
-                    string url = null;
-                    string key = null;
                     string zippassword = backupjob.zippassword.Value;
 
                     var tags = new Dictionary<string, object>();
@@ -119,7 +130,6 @@ namespace multibackup
                             json.backupjobs[i].Remove();
                             continue;
                         }
-                        connectionstring = backupjob.connectionstring.Value;
                     }
                     else if (StringComparer.OrdinalIgnoreCase.Equals(type, "cosmosdb"))
                     {
@@ -130,7 +140,6 @@ namespace multibackup
                             json.backupjobs[i].Remove();
                             continue;
                         }
-                        connectionstring = backupjob.connectionstring.Value;
                         if (backupjob.collection == null)
                         {
                             Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) is missing collection field, ignoring backup job.",
@@ -138,7 +147,6 @@ namespace multibackup
                             json.backupjobs[i].Remove();
                             continue;
                         }
-                        collection = backupjob.collection.Value;
                     }
                     else if (StringComparer.OrdinalIgnoreCase.Equals(type, "mongodb"))
                     {
@@ -149,7 +157,6 @@ namespace multibackup
                             json.backupjobs[i].Remove();
                             continue;
                         }
-                        connectionstring = backupjob.connectionstring.Value;
                     }
                     else if (StringComparer.OrdinalIgnoreCase.Equals(type, "azurestorage"))
                     {
@@ -160,7 +167,6 @@ namespace multibackup
                             json.backupjobs[i].Remove();
                             continue;
                         }
-                        url = backupjob.url.Value;
                         if (backupjob.key == null)
                         {
                             Log.Warning("Backup job {Index} ({Jobtype}, {Jobname}) is missing key field, ignoring backup job.",
@@ -168,7 +174,6 @@ namespace multibackup
                             json.backupjobs[i].Remove();
                             continue;
                         }
-                        key = backupjob.key.Value;
                     }
                     else
                     {
@@ -198,75 +203,70 @@ namespace multibackup
 
                     if (backupjob.tags != null)
                     {
-                        foreach (JProperty jsontag in backupjob.tags)
+                        foreach (var jsontag in backupjob.tags)
                         {
-                            tags.Add(jsontag.Name, jsontag.Value.ToString());
+                            if (jsontag != null)
+                            {
+                                tags.Add(jsontag.Name, jsontag.Value.ToString());
+                            }
                         }
                     }
+
+                    var targetserver = backupjob.targetserver ?? defaultTargetServer;
+                    var targetaccount = backupjob.targetaccount ?? defaultTargetAccount;
+                    var targetcertfile = backupjob.targetcertfile ?? defaultTargetCertfile;
 
                     BackupJob job;
 
                     if (StringComparer.OrdinalIgnoreCase.Equals(type, "sqlserver"))
                     {
-                        job = new BackupSqlServer
-                        {
-                            Type = BackupType.SqlServer,
-                            Name = name,
-                            ZipPassword = zippassword,
-                            Tags = tags,
-                            TargetServer = backupjob.targetserver ?? defaultTargetServer,
-                            TargetAccount = backupjob.targetaccount ?? defaultTargetAccount,
-                            TargetCertfile = backupjob.targetcertfile ?? defaultTargetCertfile,
-                            BackupPath = null,
-                            ConnectionString = connectionstring
-                        };
+                        job = new BackupSqlServer(name,
+                            zippassword,
+                            tags,
+                            targetserver,
+                            targetaccount,
+                            targetcertfile,
+                            exportFolder,
+                            date,
+                            backupjob.connectionstring.Value);
                     }
                     else if (StringComparer.OrdinalIgnoreCase.Equals(type, "cosmosdb"))
                     {
-                        job = new BackupCosmosDB
-                        {
-                            Type = BackupType.CosmosDB,
-                            Name = name,
-                            ZipPassword = zippassword,
-                            Tags = tags,
-                            TargetServer = backupjob.targetserver ?? defaultTargetServer,
-                            TargetAccount = backupjob.targetaccount ?? defaultTargetAccount,
-                            TargetCertfile = backupjob.targetcertfile ?? defaultTargetCertfile,
-                            BackupPath = null,
-                            ConnectionString = connectionstring,
-                            Collection = collection
-                        };
+                        job = new BackupCosmosDB(name,
+                            zippassword,
+                            tags,
+                            targetserver,
+                            targetaccount,
+                            targetcertfile,
+                            exportFolder,
+                            date,
+                            backupjob.connectionstring.Value,
+                            backupjob.collection.Value);
                     }
                     else if (StringComparer.OrdinalIgnoreCase.Equals(type, "mongodb"))
                     {
-                        job = new BackupMongoDB
-                        {
-                            Type = BackupType.MongoDB,
-                            Name = name,
-                            ZipPassword = zippassword,
-                            Tags = tags,
-                            TargetServer = backupjob.targetserver ?? defaultTargetServer,
-                            TargetAccount = backupjob.targetaccount ?? defaultTargetAccount,
-                            TargetCertfile = backupjob.targetcertfile ?? defaultTargetCertfile,
-                            BackupPath = null,
-                            ConnectionString = connectionstring
-                        };
+                        job = new BackupMongoDB(name,
+                            zippassword,
+                            tags,
+                            targetserver,
+                            targetaccount,
+                            targetcertfile,
+                            exportFolder,
+                            date,
+                            backupjob.connectionstring.Value);
                     }
                     else
                     {
-                        job = new BackupAzureStorage
-                        {
-                            Type = BackupType.AzureStorage,
-                            Name = name,
-                            ZipPassword = zippassword,
-                            Tags = tags,
-                            TargetServer = backupjob.targetserver ?? defaultTargetServer,
-                            TargetAccount = backupjob.targetaccount ?? defaultTargetAccount,
-                            TargetCertfile = backupjob.targetcertfile ?? defaultTargetCertfile,
-                            BackupPath = null,
-                            Url = url,
-                            Key = key
-                        };
+                        job = new BackupAzureStorage(name,
+                            zippassword,
+                            tags,
+                            targetserver,
+                            targetaccount,
+                            targetcertfile,
+                            exportFolder,
+                            date,
+                            backupjob.url.Value,
+                            backupjob.key.Value);
                     }
 
                     backupjobs.Add(job);
@@ -339,16 +339,13 @@ namespace multibackup
                 .Information("Backup counts");
         }
 
-        public static void ExportBackups(List<BackupJob> backupjobs, string exportfolder, string date)
+        public static void ExportBackups(List<BackupJob> backupjobs, string exportFolder)
         {
             Stopwatch watch = Stopwatch.StartNew();
 
-            Log.Information("Creating folder: {Exportfolder}", exportfolder);
-            Directory.CreateDirectory(exportfolder);
-
             foreach (var backupjob in backupjobs)
             {
-                backupjob.ExportBackup(exportfolder, date);
+                backupjob.ExportBackup(exportFolder);
             }
 
             Log
@@ -356,7 +353,7 @@ namespace multibackup
                 .Information("Done exporting");
         }
 
-        void ExportBackup(string exportfolder, string date)
+        void ExportBackup(string exportFolder)
         {
             using (new ContextLogger(Tags))
             {
@@ -369,7 +366,7 @@ namespace multibackup
                        .ForContext("Jobtype", Type)
                        .ForContext("Tries", tries);
 
-                    result = Export(exportfolder, date);
+                    result = Export();
                 }
                 if (!result)
                 {
@@ -377,13 +374,12 @@ namespace multibackup
                     return;
                 }
 
-                Zipfile = Path.ChangeExtension(BackupPath, ".7z");
+                string? oldfolder = null;
 
-                string oldfolder = null;
                 try
                 {
                     oldfolder = Directory.GetCurrentDirectory();
-                    Directory.SetCurrentDirectory(exportfolder);
+                    Directory.SetCurrentDirectory(exportFolder);
 
                     EncryptBackup();
 
@@ -410,14 +406,14 @@ namespace multibackup
         {
             string sevenzipbinary = Tools.SevenzipBinary;
 
-            if ((Type == BackupType.SqlServer || Type == BackupType.CosmosDB) && !File.Exists(BackupPath))
+            if ((Type == BackupType.SqlServer || Type == BackupType.CosmosDB) && !File.Exists(ExportPath))
             {
-                Log.Warning("Backup file not found, ignoring: {Backuppath}", BackupPath);
+                Log.Warning("Backup file not found, ignoring: {ExportPath}", ExportPath);
                 return;
             }
-            if ((Type == BackupType.MongoDB || Type == BackupType.AzureStorage) && !Directory.Exists(BackupPath))
+            if ((Type == BackupType.MongoDB || Type == BackupType.AzureStorage) && !Directory.Exists(ExportPath))
             {
-                Log.Warning("Backup folder not found, ignoring: {Backuppath}", BackupPath);
+                Log.Warning("Backup folder not found, ignoring: {Backuppath}", ExportPath);
                 return;
             }
 
@@ -425,7 +421,7 @@ namespace multibackup
 
             string compression = this is BackupSqlServer ? "-mx0" : "-mx9";
 
-            string args = $"a {compression} {Zipfile} {BackupPath} -sdel -mhe -p{ZipPassword}";
+            string args = $"a {compression} {Zipfile} {ExportPath} -sdel -mhe -p{ZipPassword}";
 
             int result = RunCommand(sevenzipbinary, args);
             watch.Stop();
@@ -505,16 +501,17 @@ namespace multibackup
         {
             string rsyncbinary = Tools.RsyncBinary;
 
-            string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(rsyncbinary)));
+            string binfolder = PathHelper.GetParentFolder(rsyncbinary);
+            string rsyncfolder = PathHelper.GetParentFolder(binfolder);
+            string appfolder = PathHelper.GetParentFolder(rsyncfolder);
+
+            string synccert = Path.Combine(rsyncfolder, "synccert", $"{targetCertfile}");
             string logfile = GetLogFileName(appfolder, "SyncBackups");
 
             string source = "/cygdrive/" + char.ToLower(zipfolder[0]) + zipfolder.Substring(2).Replace("\\", "/");
             string target = $"{targetAccount}@{targetServer}:.";
 
-            string binfolder = Path.GetDirectoryName(rsyncbinary);
-            string synccert = Path.Combine(Path.GetDirectoryName(binfolder), "synccert", $"{targetCertfile}");
-
-            string oldfolder = null;
+            string? oldfolder = null;
             try
             {
                 oldfolder = Directory.GetCurrentDirectory();

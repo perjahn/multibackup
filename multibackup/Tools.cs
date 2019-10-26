@@ -7,12 +7,12 @@ namespace multibackup
 {
     class Tools
     {
-        public static string SqlpackageBinary { get; set; }
-        public static string DtBinary { get; set; }
-        public static string MongodumpBinary { get; set; }
-        public static string AzcopyBinary { get; set; }
-        public static string SevenzipBinary { get; set; }
-        public static string RsyncBinary { get; set; }
+        public static string SqlpackageBinary { get; private set; } = string.Empty;
+        public static string DtBinary { get; private set; } = string.Empty;
+        public static string MongodumpBinary { get; private set; } = string.Empty;
+        public static string AzcopyBinary { get; private set; } = string.Empty;
+        public static string SevenzipBinary { get; private set; } = string.Empty;
+        public static string RsyncBinary { get; private set; } = string.Empty;
 
         public static void Prepare(string appfolder)
         {
@@ -27,6 +27,7 @@ namespace multibackup
 
             if (errors.ToString().Length != 0)
             {
+                Log.Logger.Error(errors.ToString());
                 throw new Exception(errors.ToString());
             }
 
@@ -41,7 +42,15 @@ namespace multibackup
 
         private static string GetToolPath(string searchBinary, string explicitBinary, StringBuilder errors)
         {
-            foreach (var folder in Environment.GetEnvironmentVariable("path").Split(Path.PathSeparator))
+            string? path = Environment.GetEnvironmentVariable("path");
+            if (path == null)
+            {
+                string error = "Environment variable 'path' not set.";
+                Log.Logger.Error(error);
+                throw new Exception(error);
+            }
+
+            foreach (var folder in path.Split(Path.PathSeparator))
             {
                 if (!Directory.Exists(folder))
                 {
@@ -61,7 +70,7 @@ namespace multibackup
 
             Log.Error("Couldn't find {Binary}", explicitBinary);
             errors.AppendLine($"Couldn't find '{explicitBinary}'");
-            return null;
+            return string.Empty;
         }
     }
 }

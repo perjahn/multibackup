@@ -1,5 +1,6 @@
 ﻿using Destructurama.Attributed;
 using Serilog;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -11,6 +12,12 @@ namespace multibackup
         [NotLogged]
         public string ConnectionString { get; set; }
 
+        public BackupMongoDB(string name, string zipPassword, Dictionary<string, object> tags, string targetServer, string targetAccount, string targetCertfile, string exportFolder, string date,
+            string connectionString) : base(name, BackupType.MongoDB, zipPassword, tags, targetServer, targetAccount, targetCertfile, Path.Combine(exportFolder, $"mongodb_{name}_{date}"))
+        {
+            ConnectionString = connectionString;
+        }
+
         protected override void LogBackupJob()
         {
             Log.Information("Jobname: {Jobname}, Jobtype: {Jobtype}, HashedConnectionString: {HashedConnectionString}, HashedZippassword: {HashedZippassword}",
@@ -19,9 +26,9 @@ namespace multibackup
                 LogHelper.GetHashString(ZipPassword));
         }
 
-        protected override bool Export(string exportfolder, string date)
+        protected override bool Export()
         {
-            var backupfolder = Path.Combine(exportfolder, $"mongodb_{Name}_{date}");
+            var backupfolder = ExportPath;
             var mongodumpbinary = Tools.MongodumpBinary;
 
             Log.Information("Exporting: {Backupfolder}", backupfolder);
@@ -37,7 +44,6 @@ namespace multibackup
 
             if (result == 0 && ContainsFiles(backupfolder))
             {
-                BackupPath = backupfolder;
                 long size = Directory.GetFiles(backupfolder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
                 long sizemb = size / 1024 / 1024;
                 Statistics.UncompressedSize += size;

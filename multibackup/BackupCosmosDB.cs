@@ -1,5 +1,6 @@
 ﻿using Destructurama.Attributed;
 using Serilog;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 
@@ -8,9 +9,16 @@ namespace multibackup
     public class BackupCosmosDB : BackupJob
     {
         [NotLogged]
-        public string ConnectionString { get; set; }
+        public string ConnectionString { get; }
         [NotLogged]
-        public string Collection { get; set; }
+        public string Collection { get; }
+
+        public BackupCosmosDB(string name, string zipPassword, Dictionary<string, object> tags, string targetServer, string targetAccount, string targetCertfile, string exportFolder, string date,
+            string connectionString, string collection) : base(name, BackupType.CosmosDB, zipPassword, tags, targetServer, targetAccount, targetCertfile, Path.Combine(exportFolder, $"cosmosdb_{name}_{date}.json"))
+        {
+            ConnectionString = connectionString;
+            Collection = collection;
+        }
 
         protected override void LogBackupJob()
         {
@@ -20,16 +28,16 @@ namespace multibackup
                 LogHelper.GetHashString(ZipPassword));
         }
 
-        protected override bool Export(string exportfolder, string date)
+        protected override bool Export()
         {
-            var backupfile = Path.Combine(exportfolder, $"cosmosdb_{Name}_{date}.json");
+            var backupfile = ExportPath;
             var dtbinary = Tools.DtBinary;
 
             Log.Information("Exporting: {Backupfile}", backupfile);
 
             Stopwatch watch = Stopwatch.StartNew();
 
-            string appfolder = Path.GetDirectoryName(Path.GetDirectoryName(dtbinary));
+            string appfolder = PathHelper.GetParentFolder(PathHelper.GetParentFolder(dtbinary));
             string logfile = GetLogFileName(appfolder, Name);
 
             string args = $"/ErrorLog:{logfile} /ErrorDetails:All /s:DocumentDB /s.ConnectionString:{ConnectionString} /s.Collection:{Collection} /t:JsonFile /t.File:{backupfile} /t.Prettify";
@@ -51,7 +59,6 @@ namespace multibackup
 
             if (result == 0 && File.Exists(backupfile) && new FileInfo(backupfile).Length > 0)
             {
-                BackupPath = backupfile;
                 long size = new FileInfo(backupfile).Length;
                 long sizemb = size / 1024 / 1024;
                 Statistics.UncompressedSize += size;

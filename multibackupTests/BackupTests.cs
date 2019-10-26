@@ -29,56 +29,52 @@ namespace multibackup.Tests
         {
             var backupjobs = new List<BackupJob>
             {
-                new BackupSqlServer
-                {
-                    Name = string.Empty,
-                    Tags = new Dictionary<string, object> { [string.Empty] = string.Empty },
-                    TargetAccount = string.Empty,
-                    TargetCertfile = string.Empty,
-                    TargetServer = string.Empty,
-                    Zipfile = string.Empty,
-                    ZipPassword = string.Empty,
-                    Type = BackupType.SqlServer,
-                    ConnectionString = string.Empty
-                },
-                new BackupCosmosDB
-                {
-                    Name = string.Empty,
-                    Tags = new Dictionary<string, object> { [string.Empty] = string.Empty },
-                    TargetAccount = string.Empty,
-                    TargetCertfile = string.Empty,
-                    TargetServer = string.Empty,
-                    Zipfile = string.Empty,
-                    ZipPassword = string.Empty,
-                    Type = BackupType.CosmosDB,
-                    ConnectionString = string.Empty,
-                    Collection = string.Empty
-                },
-                new BackupMongoDB
-                {
-                    Name = string.Empty,
-                    Tags = new Dictionary<string, object> { [string.Empty] = string.Empty },
-                    TargetAccount = string.Empty,
-                    TargetCertfile = string.Empty,
-                    TargetServer = string.Empty,
-                    Zipfile = string.Empty,
-                    ZipPassword = string.Empty,
-                    Type = BackupType.MongoDB,
-                    ConnectionString = string.Empty
-                },
-                new BackupAzureStorage
-                {
-                    Name = string.Empty,
-                    Tags = new Dictionary<string, object> { [string.Empty] = string.Empty },
-                    TargetAccount = string.Empty,
-                    TargetCertfile = string.Empty,
-                    TargetServer = string.Empty,
-                    Zipfile = string.Empty,
-                    ZipPassword = string.Empty,
-                    Type= BackupType.AzureStorage,
-                    Url = string.Empty,
-                    Key = string.Empty
-                }
+                new BackupSqlServer(
+                    string.Empty,
+                    string.Empty,
+                    new Dictionary<string, object> { [string.Empty] = string.Empty },
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty
+                ),
+                new BackupCosmosDB(
+                    string.Empty,
+                    string.Empty,
+                    new Dictionary<string, object> { [string.Empty] = string.Empty },
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty
+                ),
+                new BackupMongoDB(
+                    string.Empty,
+                    string.Empty,
+                    new Dictionary<string, object> { [string.Empty] = string.Empty },
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty
+                ),
+                new BackupAzureStorage(
+                    string.Empty,
+                    string.Empty,
+                    new Dictionary<string, object> { [string.Empty] = string.Empty },
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty
+                )
             };
 
             return backupjobs;
