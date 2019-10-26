@@ -17,7 +17,7 @@
       "targetcertfile": "#{target-certfile}"
     },
     {
-      "type": "cosmosdb",
+      "type": "documentdb",
       "name": "myservice-prod",
       "connectionstring": "#{connstr-myservice-prod}",
       "collection": "#{collection-myservice-prod}",

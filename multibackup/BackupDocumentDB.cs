@@ -14,7 +14,7 @@ namespace multibackup
         public string Collection { get; }
 
         public BackupDocumentDB(string name, string zipPassword, Dictionary<string, object> tags, string targetServer, string targetAccount, string targetCertfile, string exportFolder, string date,
-            string connectionString, string collection) : base(name, BackupType.DocumentDB, zipPassword, tags, targetServer, targetAccount, targetCertfile, Path.Combine(exportFolder, $"cosmosdb_{name}_{date}.json"))
+            string connectionString, string collection) : base(name, BackupType.DocumentDB, zipPassword, tags, targetServer, targetAccount, targetCertfile, Path.Combine(exportFolder, $"documentdb_{name}_{date}.json"))
         {
             ConnectionString = connectionString;
             Collection = collection;

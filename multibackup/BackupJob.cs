@@ -130,7 +130,7 @@ namespace multibackup
                             continue;
                         }
                     }
-                    else if (StringComparer.OrdinalIgnoreCase.Equals(type, "cosmosdb"))
+                    else if (StringComparer.OrdinalIgnoreCase.Equals(type, "documentdb"))
                     {
                         if (backupjob.connectionstring == null)
                         {
@@ -229,7 +229,7 @@ namespace multibackup
                             date,
                             backupjob.connectionstring.Value);
                     }
-                    else if (StringComparer.OrdinalIgnoreCase.Equals(type, "cosmosdb"))
+                    else if (StringComparer.OrdinalIgnoreCase.Equals(type, "documentdb"))
                     {
                         job = new BackupDocumentDB(name,
                             zippassword,
