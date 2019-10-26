@@ -80,6 +80,9 @@ namespace multibackup
 
             string eventHubConnectionString = settings.EventHubConnectionString;
 
+            string serilogTeamName = settings.SerilogTeamName ?? "Unknown team";
+            string serilogDepartment = settings.SerilogDepartment ?? "Unknown department";
+
             string defaultTargetServer = settings.TargetServer;
             string defaultTargetAccount = settings.TargetAccount;
             string defaultTargetCertfile = settings.TargetCertfile;
@@ -92,9 +95,6 @@ namespace multibackup
             string preSyncActionArgs = settings.PreSyncActionArgs;
             string postSyncAction = settings.PostSyncAction;
             string postSyncActionArgs = settings.PostSyncActionArgs;
-
-            string serilogTeamName = settings?.SerilogTeamName ?? "Unknown team";
-            string serilogDepartment = settings?.SerilogDepartment ?? "Unknown department";
 
             if (defaultTargetServer == null)
             {

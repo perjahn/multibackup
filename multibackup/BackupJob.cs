@@ -50,7 +50,6 @@ namespace multibackup
             TargetCertfile = targetCertfile;
             ExportPath = exportPath;
             Zipfile = Path.ChangeExtension(exportPath, ".7z");
-
         }
 
         public static List<BackupJob> LoadBackupJobs(string[] jsonfiles, string defaultTargetServer, string defaultTargetAccount, string defaultTargetCertfile, string exportFolder, string date)
