@@ -19,17 +19,17 @@ namespace multibackup
     {
         static int Main(string[] args)
         {
-            string[] parsedArgs = ParseArgs(args, out bool backupSqlServer, out bool backupCosmosDB, out bool backupMongoDB, out bool backupAzureStorage);
+            string[] parsedArgs = ParseArgs(args, out bool backupSqlServer, out bool backupDocumentDB, out bool backupMongoDB, out bool backupAzureStorage);
             if (parsedArgs.Length > 0)
             {
                 string version = GetAppVersion();
-                Console.WriteLine($"multibackup {version}{Environment.NewLine}{Environment.NewLine}Usage: multibackup.exe [-OnlyBackupSqlServer] [-OnlyBackupCosmosDB] [-OnlyBackupMongoDB] [-OnlyBackupAzureStorage]");
+                Console.WriteLine($"multibackup {version}{Environment.NewLine}{Environment.NewLine}Usage: multibackup.exe [-OnlyBackupSqlServer] [-OnlyBackupDocumentDB] [-OnlyBackupMongoDB] [-OnlyBackupAzureStorage]");
                 return 1;
             }
 
             try
             {
-                DoExceptionalStuff(backupSqlServer, backupCosmosDB, backupMongoDB, backupAzureStorage);
+                DoExceptionalStuff(backupSqlServer, backupDocumentDB, backupMongoDB, backupAzureStorage);
             }
             catch (Exception ex)
             {
@@ -40,19 +40,19 @@ namespace multibackup
             return 0;
         }
 
-        static string[] ParseArgs(string[] args, out bool backupSqlServer, out bool backupCosmosDB, out bool backupMongoDB, out bool backupAzureStorage)
+        static string[] ParseArgs(string[] args, out bool backupSqlServer, out bool backupDocumentDB, out bool backupMongoDB, out bool backupAzureStorage)
         {
             backupSqlServer = true;
-            backupCosmosDB = true;
+            backupDocumentDB = true;
             backupMongoDB = true;
             backupAzureStorage = true;
             if (args.Contains("-OnlyBackupSqlServer"))
             {
-                backupCosmosDB = false;
+                backupDocumentDB = false;
                 backupMongoDB = false;
                 backupAzureStorage = false;
             }
-            if (args.Contains("-OnlyBackupCosmosDB"))
+            if (args.Contains("-OnlyBackupDocumentDB"))
             {
                 backupSqlServer = false;
                 backupMongoDB = false;
@@ -61,20 +61,20 @@ namespace multibackup
             if (args.Contains("-OnlyBackupMongoDB"))
             {
                 backupSqlServer = false;
-                backupCosmosDB = false;
+                backupDocumentDB = false;
                 backupAzureStorage = false;
             }
             if (args.Contains("-OnlyBackupAzureStorage"))
             {
                 backupSqlServer = false;
-                backupCosmosDB = false;
+                backupDocumentDB = false;
                 backupMongoDB = false;
             }
 
             return args.Where(a => !a.StartsWith("-")).ToArray();
         }
 
-        static void DoExceptionalStuff(bool backupSqlServer, bool backupCosmosDB, bool backupMongoDB, bool backupAzureStorage)
+        static void DoExceptionalStuff(bool backupSqlServer, bool backupDocumentDB, bool backupMongoDB, bool backupAzureStorage)
         {
             dynamic settings = LoadAppSettings();
 
@@ -131,7 +131,7 @@ namespace multibackup
 
             var backupjobs = BackupJob.LoadBackupJobs(jsonfiles, defaultTargetServer, defaultTargetAccount, defaultTargetCertfile, exportFolder, date);
 
-            BackupJob.ExcludeBackupJobs(backupjobs, backupSqlServer, backupCosmosDB, backupMongoDB, backupAzureStorage);
+            BackupJob.ExcludeBackupJobs(backupjobs, backupSqlServer, backupDocumentDB, backupMongoDB, backupAzureStorage);
 
             BackupJob.LogBackupJobs(backupjobs);
 
@@ -164,8 +164,8 @@ namespace multibackup
                 .ForContext("CompressedSize", Statistics.CompressedSize)
                 .ForContext("CompressedSizeMB", Statistics.CompressedSize / 1024 / 1024)
                 .ForContext("ExportSqlServerTimeMS", (long)Statistics.ExportSqlServerTime.TotalMilliseconds)
-                .ForContext("ExportCosmosDBTimeMS", (long)Statistics.ExportCosmosDBTime.TotalMilliseconds)
-                .ForContext("ExportMongoDBTimeMS", (long)Statistics.ExportCosmosDBTime.TotalMilliseconds)
+                .ForContext("ExportDocumentDBTimeMS", (long)Statistics.ExportDocumentDBTime.TotalMilliseconds)
+                .ForContext("ExportMongoDBTimeMS", (long)Statistics.ExportDocumentDBTime.TotalMilliseconds)
                 .ForContext("ExportAzureStorageTimeMS", (long)Statistics.ExportAzureStorageTime.TotalMilliseconds)
                 .ForContext("ZipTimeMS", (long)Statistics.ZipTime.TotalMilliseconds)
                 .ForContext("SyncTimeMS", (long)Statistics.SyncTime.TotalMilliseconds)

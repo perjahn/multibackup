@@ -6,15 +6,15 @@ using System.IO;
 
 namespace multibackup
 {
-    public class BackupCosmosDB : BackupJob
+    public class BackupDocumentDB : BackupJob
     {
         [NotLogged]
         public string ConnectionString { get; }
         [NotLogged]
         public string Collection { get; }
 
-        public BackupCosmosDB(string name, string zipPassword, Dictionary<string, object> tags, string targetServer, string targetAccount, string targetCertfile, string exportFolder, string date,
-            string connectionString, string collection) : base(name, BackupType.CosmosDB, zipPassword, tags, targetServer, targetAccount, targetCertfile, Path.Combine(exportFolder, $"cosmosdb_{name}_{date}.json"))
+        public BackupDocumentDB(string name, string zipPassword, Dictionary<string, object> tags, string targetServer, string targetAccount, string targetCertfile, string exportFolder, string date,
+            string connectionString, string collection) : base(name, BackupType.DocumentDB, zipPassword, tags, targetServer, targetAccount, targetCertfile, Path.Combine(exportFolder, $"cosmosdb_{name}_{date}.json"))
         {
             ConnectionString = connectionString;
             Collection = collection;
@@ -44,7 +44,7 @@ namespace multibackup
 
             int result = RunCommand(dtbinary, args);
             watch.Stop();
-            Statistics.ExportCosmosDBTime += watch.Elapsed;
+            Statistics.ExportDocumentDBTime += watch.Elapsed;
             long elapsedms = (long)watch.Elapsed.TotalMilliseconds;
 
             if (new FileInfo(logfile).Length > 0)

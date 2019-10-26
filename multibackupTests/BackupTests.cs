@@ -13,15 +13,15 @@ namespace multibackup.Tests
             for (int i = 0; i < 16; i++)
             {
                 bool backupSqlServer = i / 8 % 2 == 1;
-                bool backupCosmosDB = i / 4 % 2 == 1;
+                bool backupDocumentDB = i / 4 % 2 == 1;
                 bool backupMongoDB = i / 2 % 2 == 1;
                 bool backupAzureStorage = i % 2 == 1;
 
                 var backupjobs = GenerateBackupJobs();
 
-                BackupJob.ExcludeBackupJobs(backupjobs, backupSqlServer, backupCosmosDB, backupMongoDB, backupAzureStorage);
+                BackupJob.ExcludeBackupJobs(backupjobs, backupSqlServer, backupDocumentDB, backupMongoDB, backupAzureStorage);
 
-                Assert.AreEqual(results[i], backupjobs.Count, $"i: {i}, backupSqlServer: {backupSqlServer}, backupCosmosDB: {backupCosmosDB}, backupMongoDB: {backupMongoDB}, backupAzureStorage: {backupAzureStorage}");
+                Assert.AreEqual(results[i], backupjobs.Count, $"i: {i}, backupSqlServer: {backupSqlServer}, backupDocumentDB: {backupDocumentDB}, backupMongoDB: {backupMongoDB}, backupAzureStorage: {backupAzureStorage}");
             }
         }
 
@@ -40,7 +40,7 @@ namespace multibackup.Tests
                     string.Empty,
                     string.Empty
                 ),
-                new BackupCosmosDB(
+                new BackupDocumentDB(
                     string.Empty,
                     string.Empty,
                     new Dictionary<string, object> { [string.Empty] = string.Empty },

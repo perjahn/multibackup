@@ -14,7 +14,7 @@ namespace multibackup
     public enum BackupType
     {
         SqlServer,
-        CosmosDB,
+        DocumentDB,
         MongoDB,
         AzureStorage
     }
@@ -231,7 +231,7 @@ namespace multibackup
                     }
                     else if (StringComparer.OrdinalIgnoreCase.Equals(type, "cosmosdb"))
                     {
-                        job = new BackupCosmosDB(name,
+                        job = new BackupDocumentDB(name,
                             zippassword,
                             tags,
                             targetserver,
@@ -285,7 +285,7 @@ namespace multibackup
             return backupjobs;
         }
 
-        public static void ExcludeBackupJobs(List<BackupJob> backupjobs, bool backupSqlServer, bool backupCosmosDB, bool backupMongoDB, bool backupAzureStorage)
+        public static void ExcludeBackupJobs(List<BackupJob> backupjobs, bool backupSqlServer, bool backupDocumentDB, bool backupMongoDB, bool backupAzureStorage)
         {
             for (int i = 0; i < backupjobs.Count;)
             {
@@ -294,7 +294,7 @@ namespace multibackup
                 using (new ContextLogger(backupjob.Tags))
                 {
                     if ((backupjob.Type == BackupType.SqlServer && !backupSqlServer) ||
-                        (backupjob.Type == BackupType.CosmosDB && !backupCosmosDB) ||
+                        (backupjob.Type == BackupType.DocumentDB && !backupDocumentDB) ||
                         (backupjob.Type == BackupType.MongoDB && !backupMongoDB) ||
                         (backupjob.Type == BackupType.AzureStorage && !backupAzureStorage))
                     {
@@ -315,7 +315,7 @@ namespace multibackup
             var typecounts = new Dictionary<BackupType, int>
             {
                 [BackupType.SqlServer] = 0,
-                [BackupType.CosmosDB] = 0,
+                [BackupType.DocumentDB] = 0,
                 [BackupType.MongoDB] = 0,
                 [BackupType.AzureStorage] = 0
             };
@@ -331,7 +331,7 @@ namespace multibackup
 
             Log
                 .ForContext("SqlServerCount", typecounts[BackupType.SqlServer])
-                .ForContext("CosmosDBCount", typecounts[BackupType.CosmosDB])
+                .ForContext("DocumentDBCount", typecounts[BackupType.DocumentDB])
                 .ForContext("MongoDBCount", typecounts[BackupType.MongoDB])
                 .ForContext("AzureStorageCount", typecounts[BackupType.AzureStorage])
                 .ForContext("TotalCount", backupjobs.Count)
@@ -405,7 +405,7 @@ namespace multibackup
         {
             string sevenzipbinary = Tools.SevenzipBinary;
 
-            if ((Type == BackupType.SqlServer || Type == BackupType.CosmosDB) && !File.Exists(ExportPath))
+            if ((Type == BackupType.SqlServer || Type == BackupType.DocumentDB) && !File.Exists(ExportPath))
             {
                 Log.Warning("Backup file not found, ignoring: {ExportPath}", ExportPath);
                 return;
